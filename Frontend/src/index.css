@@ -1,0 +1,237 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Frappe UI Light Theme (Clean, Slate, Blue) */
+    --background: 0 0% 100%;
+    /* Pure White or 220 14% 96% for gray bg */
+    --foreground: 222 47% 11%;
+    /* Slate 900 */
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 221 83% 53%;
+    /* Frappe Blue */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    /* Slate 100 */
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Slate 500 */
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    /* Slate 200 */
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+
+    --radius: 0.5rem;
+    /* 8px - Cleaner look */
+
+    /* Sidebar - Light Mode */
+    --sidebar-background: 210 40% 98%;
+    /* Very Light Gray */
+    --sidebar-foreground: 215.4 16.3% 46.9%;
+    /* Muted text */
+    --sidebar-primary: 221 83% 53%;
+    /* Active Item Blue */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 96.1%;
+    /* Hover bg */
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 221.2 83.2% 53.3%;
+
+    --success: 142 76% 36%;
+    /* Green */
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    /* Orange */
+    --warning-foreground: 0 0% 100%;
+    --info: 221 83% 53%;
+    /* Blue */
+    --info-foreground: 0 0% 100%;
+
+    /* Charts (Frappe Colors) */
+    --chart-1: 221 83% 53%;
+    /* Blue */
+    --chart-2: 142 76% 36%;
+    /* Green */
+    --chart-3: 38 92% 50%;
+    /* Orange */
+    --chart-4: 0 84% 60%;
+    /* Red */
+    --chart-5: 262 83% 58%;
+    /* Purple */
+  }
+
+  .dark {
+    /* Dark Mode (Slate Based) */
+    --background: 222 47% 11%;
+    /* Slate 950 */
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 91% 60%;
+    /* Lighter Blue */
+    --primary-foreground: 222 47% 11%;
+
+    --secondary: 217 32% 17%;
+    /* Slate 800 */
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 32% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 32% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 32% 17%;
+    --input: 217 32% 17%;
+    --ring: 224 76% 48%;
+
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 32% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 32% 17%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+    /* Frappe uses Inter */
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    /* Removed aggressive backdrop blur for Frappe Clean look */
+    @apply bg-card border border-border shadow-sm;
+  }
+
+  .sidebar-gradient {
+    /* Removed gradient for flat design */
+    @apply bg-sidebar;
+  }
+
+  .gold-gradient {
+    /* Replaced with solid Primary Blue for Professional look */
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+
+  .status-dot {
+    @apply w-2.5 h-2.5 rounded-full ring-2 ring-background;
+  }
+
+  .stat-card {
+    @apply bg-card border border-border rounded-xl p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-primary/20;
+  }
+
+  /* Frappe-like Utility Classes */
+  .frappe-card {
+    @apply bg-white dark:bg-slate-900 border border-border rounded-lg shadow-sm p-4;
+  }
+
+  /* Dialog Styles */
+  .dialog-overlay {
+    @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4;
+  }
+
+  .dialog-content {
+    @apply bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col;
+  }
+
+  .dialog-header {
+    @apply flex items-center justify-between px-6 py-4 border-b border-slate-200;
+  }
+
+  .dialog-title {
+    @apply text-lg font-semibold text-slate-800;
+  }
+
+  .dialog-close {
+    @apply p-1.5 hover:bg-slate-100 rounded-md transition-colors text-slate-500 hover:text-slate-700;
+  }
+
+  .dialog-body {
+    @apply px-6 py-4 overflow-y-auto flex-1;
+  }
+
+  .dialog-footer {
+    @apply flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50;
+  }
+
+  /* Page Styles */
+  .page-container {
+    @apply p-6 max-w-7xl mx-auto;
+  }
+
+  .page-header {
+    @apply flex items-center justify-between mb-6;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold text-slate-800;
+  }
+
+  .page-subtitle {
+    @apply text-sm text-slate-500 mt-1;
+  }
+
+  /* Form Styles */
+  .label {
+    @apply block text-sm font-medium text-slate-700 mb-2;
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-slate-800 placeholder:text-slate-400;
+  }
+
+  /* Button Styles */
+  .btn-primary {
+    @apply flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-md text-sm font-medium hover:bg-slate-50 hover:text-slate-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Card Styles */
+  .card {
+    @apply bg-white border border-slate-200 rounded-lg shadow-sm p-4;
+  }
+}

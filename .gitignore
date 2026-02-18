@@ -1,0 +1,38 @@
+# Ignore dependencies
+node_modules/
+
+# Ignore database
+database/
+*.db
+*.sqlite
+*.sqlite3
+
+# Ignore environment variables
+.env
+.env.local
+.env.production
+
+# Ignore media files
+public/media/
+
+# Ignore logs
+*.log
+npm-debug.log*
+logs/
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore temporary files
+tmp/
+temp/
+*.tmp

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Dashboard Diagnostic</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+
+        .section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+
+        h1,
+        h2 {
+            color: #25D366;
+        }
+
+        pre {
+            background: #000;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+
+        .success {
+            color: #25D366;
+        }
+
+        .error {
+            color: #ff5555;
+        }
+
+        button {
+            background: #25D366;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #20bd5b;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔍 WhatsApp Dashboard Diagnostic</h1>
+
+    <div class="section">
+        <h2>1. API Tests</h2>
+        <button onclick="testContacts()">Test /api/contacts</button>
+        <button onclick="testMessages()">Test /api/messages/1234567890</button>
+        <button onclick="testStats()">Test /api/stats</button>
+        <pre id="apiResult">Click a button to test...</pre>
+    </div>
+
+    <div class="section">
+        <h2>2. Browser Console Errors</h2>
+        <pre id="consoleErrors">Checking...</pre>
+    </div>
+
+    <div class="section">
+        <h2>3. Network Requests</h2>
+        <pre id="networkLog">Loading...</pre>
+    </div>
+
+    <div class="section">
+        <h2>4. Quick Actions</h2>
+        <button onclick="window.location.reload()">🔄 Reload Dashboard</button>
+        <button onclick="window.location.href='/'"">📱 Open Main Dashboard</button>
+        <button onclick=" window.open('/test-webhook', '_blank' )">🧪 Trigger Test Webhook</button>
+    </div>
+
+    <script>
+        // Capture console errors
+        const errors = [];
+        const originalError = console.error;
+        console.error = function (...args) {
+            errors.push(args.join(' '));
+            originalError.apply(console, args);
+        };
+
+        setTimeout(() => {
+            document.getElementById('consoleErrors').textContent =
+                errors.length > 0 ? errors.join('\n') : '✅ No console errors detected';
+        }, 1000);
+
+        // Test API endpoints
+        async function testContacts() {
+            const result = document.getElementById('apiResult');
+            result.textContent = 'Loading...';
+            try {
+                const response = await fetch('/api/contacts');
+                const data = await response.json();
+                result.innerHTML = `<span class="success">✅ SUCCESS</span>\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ ERROR</span>\n${error.message}`;
+            }
+        }
+
+        async function testMessages() {
+            const result = document.getElementById('apiResult');
+            result.textContent = 'Loading...';
+            try {
+                const response = await fetch('/api/messages/1234567890');
+                const data = await response.json();
+                result.innerHTML = `<span class="success">✅ SUCCESS</span>\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ ERROR</span>\n${error.message}`;
+            }
+        }
+
+        async function testStats() {
+            const result = document.getElementById('apiResult');
+            result.textContent = 'Loading...';
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                result.innerHTML = `<span class="success">✅ SUCCESS</span>\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ ERROR</span>\n${error.message}`;
+            }
+        }
+
+        // Log network activity
+        const networkLog = document.getElementById('networkLog');
+        const observer = new PerformanceObserver((list) => {
+            const entries = list.getEntries();
+            const logs = entries.map(entry =>
+                `${entry.name} - ${Math.round(entry.duration)}ms - ${entry.initiatorType}`
+            ).join('\n');
+            networkLog.textContent = logs || 'No network activity yet...';
+        });
+        observer.observe({ entryTypes: ['resource'] });
+
+        // Auto-test on load
+        setTimeout(testContacts, 500);
+    </script>
+</body>
+
+</html>
