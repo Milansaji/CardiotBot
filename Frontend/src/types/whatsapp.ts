@@ -6,8 +6,9 @@ export interface WhatsAppContact {
     profile_name: string;
     last_message_at: number;
     unread_count: number;
-    status: 'ongoing' | 'converted' | 'rejected' | 'human_takeover';
+    status: 'ongoing' | 'converted' | 'rejected' | 'human_takeover' | 'follow_up';
     lead_temperature: 'hot' | 'warm' | 'cold';
+    assigned_agent_id: string | null;
 }
 
 export interface WhatsAppMessage {

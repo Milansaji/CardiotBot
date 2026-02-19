@@ -251,4 +251,36 @@ export const exportContactsFilteredEnhanced = async (filters?: {
     return response.data;
 };
 
+// ========== AGENTS ==========
+
+export const getAgents = async (): Promise<any[]> => {
+    const response = await api.get('/api/agents');
+    return response.data;
+};
+
+export const createAgent = async (data: { name: string; email?: string }): Promise<any> => {
+    const response = await api.post('/api/agents', data);
+    return response.data;
+};
+
+export const updateAgent = async (id: string, data: { name: string; email?: string }): Promise<any> => {
+    const response = await api.put(`/api/agents/${id}`, data);
+    return response.data;
+};
+
+export const deleteAgent = async (id: string): Promise<any> => {
+    const response = await api.delete(`/api/agents/${id}`);
+    return response.data;
+};
+
+export const getAgentContacts = async (id: string): Promise<any[]> => {
+    const response = await api.get(`/api/agents/${id}/contacts`);
+    return response.data;
+};
+
+export const assignAgentToContact = async (phoneNumber: string, agentId: string | null): Promise<any> => {
+    const response = await api.put(`/api/contacts/${phoneNumber}/agent`, { agentId });
+    return response.data;
+};
+
 export default api;

@@ -1,12 +1,9 @@
 const SegmentModel = require('../models/segmentModel');
 
 class SegmentController {
-    /**
-     * GET /api/segments - Get all segments
-     */
-    static getAllSegments(req, res) {
+    static async getAllSegments(req, res) {
         try {
-            const segments = SegmentModel.getAll.all();
+            const segments = await SegmentModel.getAll();
             res.json(segments);
         } catch (error) {
             console.error('Error fetching segments:', error);
@@ -14,18 +11,11 @@ class SegmentController {
         }
     }
 
-    /**
-     * GET /api/segments/:id - Get segment by ID
-     */
-    static getSegment(req, res) {
+    static async getSegment(req, res) {
         try {
             const { id } = req.params;
-            const segment = SegmentModel.getById.get(id);
-
-            if (!segment) {
-                return res.status(404).json({ error: 'Segment not found' });
-            }
-
+            const segment = await SegmentModel.getById(id);
+            if (!segment) return res.status(404).json({ error: 'Segment not found' });
             res.json(segment);
         } catch (error) {
             console.error('Error fetching segment:', error);
@@ -33,26 +23,15 @@ class SegmentController {
         }
     }
 
-    /**
-     * POST /api/segments - Create new segment
-     */
-    static createSegment(req, res) {
+    static async createSegment(req, res) {
         try {
             const { name, description = '' } = req.body;
+            if (!name) return res.status(400).json({ error: 'Segment name is required' });
 
-            if (!name) {
-                return res.status(400).json({ error: 'Segment name is required' });
-            }
+            const existing = await SegmentModel.getByName(name);
+            if (existing) return res.status(409).json({ error: 'Segment with this name already exists' });
 
-            // Check if segment already exists
-            const existing = SegmentModel.getByName.get(name);
-            if (existing) {
-                return res.status(409).json({ error: 'Segment with this name already exists' });
-            }
-
-            const result = SegmentModel.create.run(name, description);
-            const newSegment = SegmentModel.getById.get(result.lastInsertRowid);
-
+            const newSegment = await SegmentModel.create(name, description);
             console.log(`✅ Created segment: ${name}`);
             res.status(201).json(newSegment);
         } catch (error) {
@@ -61,27 +40,17 @@ class SegmentController {
         }
     }
 
-    /**
-     * PUT /api/segments/:id - Update segment
-     */
-    static updateSegment(req, res) {
+    static async updateSegment(req, res) {
         try {
             const { id } = req.params;
             const { name, description } = req.body;
+            if (!name) return res.status(400).json({ error: 'Segment name is required' });
 
-            if (!name) {
-                return res.status(400).json({ error: 'Segment name is required' });
-            }
+            const segment = await SegmentModel.getById(id);
+            if (!segment) return res.status(404).json({ error: 'Segment not found' });
 
-            const segment = SegmentModel.getById.get(id);
-            if (!segment) {
-                return res.status(404).json({ error: 'Segment not found' });
-            }
-
-            SegmentModel.update.run(name, description || '', id);
-            const updated = SegmentModel.getById.get(id);
-
-            console.log(`✅ Updated segment: ${name}`);
+            await SegmentModel.update(id, name, description || '');
+            const updated = await SegmentModel.getById(id);
             res.json(updated);
         } catch (error) {
             console.error('Error updating segment:', error);
@@ -89,21 +58,13 @@ class SegmentController {
         }
     }
 
-    /**
-     * DELETE /api/segments/:id - Delete segment
-     */
-    static deleteSegment(req, res) {
+    static async deleteSegment(req, res) {
         try {
             const { id } = req.params;
+            const segment = await SegmentModel.getById(id);
+            if (!segment) return res.status(404).json({ error: 'Segment not found' });
 
-            const segment = SegmentModel.getById.get(id);
-            if (!segment) {
-                return res.status(404).json({ error: 'Segment not found' });
-            }
-
-            SegmentModel.delete.run(id);
-
-            console.log(`✅ Deleted segment: ${segment.name}`);
+            await SegmentModel.delete(id);
             res.json({ success: true, message: 'Segment deleted' });
         } catch (error) {
             console.error('Error deleting segment:', error);
@@ -111,13 +72,10 @@ class SegmentController {
         }
     }
 
-    /**
-     * GET /api/segments/:id/contacts - Get contacts in segment
-     */
-    static getSegmentContacts(req, res) {
+    static async getSegmentContacts(req, res) {
         try {
             const { id } = req.params;
-            const contacts = SegmentModel.getContacts.all(id);
+            const contacts = await SegmentModel.getContacts(id);
             res.json(contacts);
         } catch (error) {
             console.error('Error fetching segment contacts:', error);
@@ -125,59 +83,38 @@ class SegmentController {
         }
     }
 
-    /**
-     * POST /api/segments/:id/contacts - Add contacts to segment
-     */
-    static addContactsToSegment(req, res) {
+    static async addContactsToSegment(req, res) {
         try {
             const { id } = req.params;
             const { contactIds, phoneNumbers } = req.body;
 
-            const segment = SegmentModel.getById.get(id);
-            if (!segment) {
-                return res.status(404).json({ error: 'Segment not found' });
-            }
+            const segment = await SegmentModel.getById(id);
+            if (!segment) return res.status(404).json({ error: 'Segment not found' });
 
             let idsToAdd = contactIds || [];
 
-            // If phone numbers provided, convert to IDs
             if (phoneNumbers && phoneNumbers.length > 0) {
                 for (const phone of phoneNumbers) {
-                    const contact = SegmentModel.getContactIdByPhone.get(phone);
-                    if (contact) {
-                        idsToAdd.push(contact.id);
-                    }
+                    const contact = await SegmentModel.getContactIdByPhone(phone);
+                    if (contact) idsToAdd.push(contact.id);
                 }
             }
 
-            if (idsToAdd.length === 0) {
-                return res.status(400).json({ error: 'No valid contacts provided' });
-            }
+            if (idsToAdd.length === 0) return res.status(400).json({ error: 'No valid contacts provided' });
 
-            SegmentModel.addMultipleContacts(id, idsToAdd);
-
-            console.log(`✅ Added ${idsToAdd.length} contacts to segment: ${segment.name}`);
-            res.json({
-                success: true,
-                added: idsToAdd.length,
-                segment: SegmentModel.getById.get(id)
-            });
+            await SegmentModel.addMultipleContacts(id, idsToAdd);
+            const updated = await SegmentModel.getById(id);
+            res.json({ success: true, added: idsToAdd.length, segment: updated });
         } catch (error) {
             console.error('Error adding contacts to segment:', error);
             res.status(500).json({ error: 'Failed to add contacts' });
         }
     }
 
-    /**
-     * DELETE /api/segments/:id/contacts/:contactId - Remove contact from segment
-     */
-    static removeContactFromSegment(req, res) {
+    static async removeContactFromSegment(req, res) {
         try {
             const { id, contactId } = req.params;
-
-            SegmentModel.removeContact.run(contactId, id);
-
-            console.log(`✅ Removed contact ${contactId} from segment ${id}`);
+            await SegmentModel.removeContact(contactId, id);
             res.json({ success: true });
         } catch (error) {
             console.error('Error removing contact from segment:', error);
@@ -185,19 +122,13 @@ class SegmentController {
         }
     }
 
-    /**
-     * GET /api/contacts/:phoneNumber/segments - Get segments for a contact
-     */
-    static getContactSegments(req, res) {
+    static async getContactSegments(req, res) {
         try {
             const { phoneNumber } = req.params;
-            const contact = SegmentModel.getContactIdByPhone.get(phoneNumber);
+            const contact = await SegmentModel.getContactIdByPhone(phoneNumber);
+            if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
-            if (!contact) {
-                return res.status(404).json({ error: 'Contact not found' });
-            }
-
-            const segments = SegmentModel.getContactSegments.all(contact.id);
+            const segments = await SegmentModel.getContactSegments(contact.id);
             res.json(segments);
         } catch (error) {
             console.error('Error fetching contact segments:', error);

@@ -137,12 +137,12 @@ const Contacts = () => {
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
-      <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-200 pb-4 gap-4">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Contacts</h1>
           <p className="text-sm text-slate-500 mt-1">Manage your customer database ({contactsData.length})</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={handleExport}
             disabled={exportMutation.isPending || exportFilteredMutation.isPending || contactsData.length === 0}
@@ -227,9 +227,9 @@ const Contacts = () => {
               key={temp}
               onClick={() => setTempFilter(tempFilter === temp ? null : temp)}
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors capitalize ${temp === 'hot' && tempFilter === temp ? 'bg-orange-600 text-white border-orange-600' :
-                  temp === 'warm' && tempFilter === temp ? 'bg-yellow-500 text-white border-yellow-500' :
-                    temp === 'cold' && tempFilter === temp ? 'bg-cyan-600 text-white border-cyan-600' :
-                      'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                temp === 'warm' && tempFilter === temp ? 'bg-yellow-500 text-white border-yellow-500' :
+                  temp === 'cold' && tempFilter === temp ? 'bg-cyan-600 text-white border-cyan-600' :
+                    'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                 }`}
             >
               {temp === 'hot' ? '🔥' : temp === 'warm' ? '🌡️' : '❄️'} {temp}
@@ -276,12 +276,7 @@ const Contacts = () => {
                             {initials}
                           </div>
                           <div>
-                            {editingContact === activeDropdown ? (
-                              // Edit mode handled via dialog preferrably, keeping simple here
-                              <span className="text-sm font-medium text-slate-900">{contact.profile_name}</span>
-                            ) : (
-                              <span className="text-sm font-medium text-slate-900">{contact.profile_name}</span>
-                            )}
+                            <span className="text-sm font-medium text-slate-900">{contact.profile_name}</span>
                           </div>
                         </div>
                       </td>
@@ -320,13 +315,11 @@ const Contacts = () => {
                                 onClick={() => {
                                   setEditingContact(contact.phone_number);
                                   setEditName(contact.profile_name);
-                                  // Typically open a modal here
                                   setActiveDropdown(null);
-                                  alert("Edit feature coming soon (use table inline edit typically)");
                                 }}
                                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                               >
-                                <Pencil className="w-3.5 h-3.5" /> Edit
+                                <Pencil className="w-3.5 h-3.5" /> Edit Name
                               </button>
                               <button
                                 onClick={() => {
@@ -393,6 +386,55 @@ const Contacts = () => {
                 <button onClick={() => setShowAddDialog(false)} className="flex-1 py-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium">Cancel</button>
                 <button onClick={handleAddContact} disabled={addMutation.isPending} className="flex-1 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium shadow-sm">
                   {addMutation.isPending ? "Adding..." : "Save Contact"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Name Dialog */}
+      {editingContact && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm" onClick={() => setEditingContact(null)}>
+          <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl border border-slate-200" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-slate-800">Edit Contact Name</h2>
+              <button onClick={() => setEditingContact(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-slate-700 block mb-1">Display Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && editName.trim()) {
+                      updateNameMutation.mutate({ phoneNumber: editingContact, name: editName.trim() }, {
+                        onSuccess: () => setEditingContact(null)
+                      });
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  placeholder="Enter new name..."
+                  autoFocus
+                />
+                <p className="text-xs text-slate-400 mt-1">Phone: {editingContact}</p>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEditingContact(null)} className="flex-1 py-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium">Cancel</button>
+                <button
+                  onClick={() => {
+                    if (editName.trim()) {
+                      updateNameMutation.mutate({ phoneNumber: editingContact, name: editName.trim() }, {
+                        onSuccess: () => setEditingContact(null)
+                      });
+                    }
+                  }}
+                  disabled={updateNameMutation.isPending || !editName.trim()}
+                  className="flex-1 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium shadow-sm disabled:opacity-60"
+                >
+                  {updateNameMutation.isPending ? "Saving..." : "Save Name"}
                 </button>
               </div>
             </div>

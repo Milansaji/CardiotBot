@@ -17,8 +17,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@supabase/supabase-js": "^2.97.0",
     "axios": "^1.6.2",
-    "better-sqlite3": "^9.2.2",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
     "dotenv": "^16.3.1",

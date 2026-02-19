@@ -3,9 +3,9 @@ const WorkflowModel = require('../models/workflowModel');
 class WorkflowController {
     // ========== WORKFLOW CRUD ==========
 
-    static getAllWorkflows(req, res) {
+    static async getAllWorkflows(req, res) {
         try {
-            const workflows = WorkflowModel.getAllWorkflows();
+            const workflows = await WorkflowModel.getAllWorkflows();
             res.json(workflows);
         } catch (error) {
             console.error('Error fetching workflows:', error);
@@ -13,16 +13,13 @@ class WorkflowController {
         }
     }
 
-    static getWorkflow(req, res) {
+    static async getWorkflow(req, res) {
         try {
             const { id } = req.params;
-            const workflow = WorkflowModel.getWorkflowById(id);
+            const workflow = await WorkflowModel.getWorkflowById(id);
+            if (!workflow) return res.status(404).json({ error: 'Workflow not found' });
 
-            if (!workflow) {
-                return res.status(404).json({ error: 'Workflow not found' });
-            }
-
-            const steps = WorkflowModel.getWorkflowSteps(id);
+            const steps = await WorkflowModel.getWorkflowSteps(id);
             res.json({ ...workflow, steps });
         } catch (error) {
             console.error('Error fetching workflow:', error);
@@ -30,33 +27,27 @@ class WorkflowController {
         }
     }
 
-    static createWorkflow(req, res) {
+    static async createWorkflow(req, res) {
         try {
             const { name, description, trigger_after_days, steps } = req.body;
-
             if (!name || !trigger_after_days) {
                 return res.status(400).json({ error: 'Name and trigger_after_days are required' });
             }
 
-            const workflowId = WorkflowModel.createWorkflow({
-                name,
-                description,
-                trigger_after_days,
-                is_active: 1
-            });
+            const workflowId = await WorkflowModel.createWorkflow({ name, description, trigger_after_days, is_active: true });
 
-            // Create steps if provided
             if (steps && Array.isArray(steps)) {
-                steps.forEach((step, index) => {
-                    WorkflowModel.createWorkflowStep({
+                for (let i = 0; i < steps.length; i++) {
+                    const step = steps[i];
+                    await WorkflowModel.createWorkflowStep({
                         workflow_id: workflowId,
-                        step_number: index + 1,
+                        step_number: i + 1,
                         delay_hours: step.delay_hours,
                         template_name: step.template_name,
                         template_language: step.template_language || 'en_US',
                         template_components: step.template_components ? JSON.stringify(step.template_components) : null
                     });
-                });
+                }
             }
 
             res.json({ success: true, workflowId });
@@ -66,34 +57,26 @@ class WorkflowController {
         }
     }
 
-    static updateWorkflow(req, res) {
+    static async updateWorkflow(req, res) {
         try {
             const { id } = req.params;
             const { name, description, trigger_after_days, is_active, steps } = req.body;
 
-            WorkflowModel.updateWorkflow(id, {
-                name,
-                description,
-                trigger_after_days,
-                is_active
-            });
+            await WorkflowModel.updateWorkflow(id, { name, description, trigger_after_days, is_active });
 
-            // Update steps if provided
             if (steps && Array.isArray(steps)) {
-                // Delete existing steps
-                WorkflowModel.deleteWorkflowSteps(id);
-
-                // Create new steps
-                steps.forEach((step, index) => {
-                    WorkflowModel.createWorkflowStep({
+                await WorkflowModel.deleteWorkflowSteps(id);
+                for (let i = 0; i < steps.length; i++) {
+                    const step = steps[i];
+                    await WorkflowModel.createWorkflowStep({
                         workflow_id: id,
-                        step_number: index + 1,
+                        step_number: i + 1,
                         delay_hours: step.delay_hours,
                         template_name: step.template_name,
                         template_language: step.template_language || 'en_US',
                         template_components: step.template_components ? JSON.stringify(step.template_components) : null
                     });
-                });
+                }
             }
 
             res.json({ success: true });
@@ -103,10 +86,10 @@ class WorkflowController {
         }
     }
 
-    static deleteWorkflow(req, res) {
+    static async deleteWorkflow(req, res) {
         try {
             const { id } = req.params;
-            WorkflowModel.deleteWorkflow(id);
+            await WorkflowModel.deleteWorkflow(id);
             res.json({ success: true });
         } catch (error) {
             console.error('Error deleting workflow:', error);
@@ -114,11 +97,11 @@ class WorkflowController {
         }
     }
 
-    static toggleWorkflow(req, res) {
+    static async toggleWorkflow(req, res) {
         try {
             const { id } = req.params;
             const { is_active } = req.body;
-            WorkflowModel.toggleWorkflow(id, is_active ? 1 : 0);
+            await WorkflowModel.toggleWorkflow(id, Boolean(is_active));
             res.json({ success: true });
         } catch (error) {
             console.error('Error toggling workflow:', error);
@@ -128,10 +111,10 @@ class WorkflowController {
 
     // ========== CONTACT WORKFLOW MANAGEMENT ==========
 
-    static pauseContactWorkflow(req, res) {
+    static async pauseContactWorkflow(req, res) {
         try {
             const { contactId } = req.params;
-            WorkflowModel.pauseContactWorkflow(contactId);
+            await WorkflowModel.pauseContactWorkflow(contactId);
             res.json({ success: true });
         } catch (error) {
             console.error('Error pausing workflow:', error);
@@ -139,10 +122,10 @@ class WorkflowController {
         }
     }
 
-    static resumeContactWorkflow(req, res) {
+    static async resumeContactWorkflow(req, res) {
         try {
             const { contactId } = req.params;
-            WorkflowModel.resumeContactWorkflow(contactId);
+            await WorkflowModel.resumeContactWorkflow(contactId);
             res.json({ success: true });
         } catch (error) {
             console.error('Error resuming workflow:', error);
@@ -150,10 +133,10 @@ class WorkflowController {
         }
     }
 
-    static removeContactFromWorkflow(req, res) {
+    static async removeContactFromWorkflow(req, res) {
         try {
             const { contactId } = req.params;
-            WorkflowModel.removeContactFromWorkflow(contactId);
+            await WorkflowModel.removeContactFromWorkflow(contactId);
             res.json({ success: true });
         } catch (error) {
             console.error('Error removing from workflow:', error);
@@ -163,10 +146,10 @@ class WorkflowController {
 
     // ========== ANALYTICS ==========
 
-    static getWorkflowStats(req, res) {
+    static async getWorkflowStats(req, res) {
         try {
             const { id } = req.params;
-            const stats = WorkflowModel.getWorkflowStats(id);
+            const stats = await WorkflowModel.getWorkflowStats(id);
             res.json(stats);
         } catch (error) {
             console.error('Error fetching workflow stats:', error);
@@ -174,11 +157,11 @@ class WorkflowController {
         }
     }
 
-    static getWorkflowLogs(req, res) {
+    static async getWorkflowLogs(req, res) {
         try {
             const { id } = req.params;
             const { limit = 100 } = req.query;
-            const logs = WorkflowModel.getWorkflowLogs(id, parseInt(limit));
+            const logs = await WorkflowModel.getWorkflowLogs(id, parseInt(limit));
             res.json(logs);
         } catch (error) {
             console.error('Error fetching workflow logs:', error);

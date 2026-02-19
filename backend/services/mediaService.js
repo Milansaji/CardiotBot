@@ -37,7 +37,7 @@ class MediaService {
             fs.writeFileSync(filepath, response.data);
 
             // Update database with local URL
-            MessageModel.updateMediaUrl.run(`/media/${filename}`, messageId);
+            await MessageModel.updateMediaUrl(`/media/${filename}`, messageId);
 
             console.log(`✅ Media downloaded: ${filename}`);
             return `/media/${filename}`;

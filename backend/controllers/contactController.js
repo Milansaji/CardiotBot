@@ -1,12 +1,13 @@
 const { ContactModel, StatsModel } = require('../models/queries');
+const supabase = require('../config/supabase');
 
 class ContactController {
     /**
      * GET /api/contacts - Get all contacts
      */
-    static getAllContacts(req, res) {
+    static async getAllContacts(req, res) {
         try {
-            const contacts = ContactModel.getAll.all();
+            const contacts = await ContactModel.getAll();
             res.json(contacts);
         } catch (error) {
             console.error('Error fetching contacts:', error);
@@ -17,34 +18,19 @@ class ContactController {
     /**
      * GET /api/dashboard/stats - Get enhanced dashboard statistics
      */
-    static getDashboardStats(req, res) {
+    static async getDashboardStats(req, res) {
         try {
-            const totalMessages = StatsModel.getTotalMessages.get();
-            const totalContacts = StatsModel.getTotalContacts.get();
-            const unreadMessages = StatsModel.getUnreadMessages.get();
+            const totalMessages = await StatsModel.getTotalMessages();
+            const totalContacts = await StatsModel.getTotalContacts();
+            const unreadMessages = await StatsModel.getUnreadMessages();
+            const statusBreakdown = await StatsModel.getStatusBreakdown();
+            const tempBreakdown = await StatsModel.getTemperatureBreakdown();
 
-            // Status breakdown
-            const statusBreakdown = StatsModel.getStatusBreakdown.all();
-            const statusCounts = {
-                ongoing: 0,
-                converted: 0,
-                rejected: 0,
-                human_takeover: 0
-            };
-            statusBreakdown.forEach(row => {
-                statusCounts[row.status] = row.count;
-            });
+            const statusCounts = { ongoing: 0, converted: 0, rejected: 0, human_takeover: 0 };
+            statusBreakdown.forEach(row => { statusCounts[row.status] = row.count; });
 
-            // Temperature breakdown
-            const tempBreakdown = StatsModel.getTemperatureBreakdown.all();
-            const tempCounts = {
-                hot: 0,
-                warm: 0,
-                cold: 0
-            };
-            tempBreakdown.forEach(row => {
-                tempCounts[row.lead_temperature] = row.count;
-            });
+            const tempCounts = { hot: 0, warm: 0, cold: 0 };
+            tempBreakdown.forEach(row => { tempCounts[row.lead_temperature] = row.count; });
 
             res.json({
                 totalMessages: totalMessages.count,
@@ -60,13 +46,13 @@ class ContactController {
     }
 
     /**
-     * GET /api/stats - Get basic statistics (backwards compatibility)
+     * GET /api/stats - Get basic statistics
      */
-    static getStats(req, res) {
+    static async getStats(req, res) {
         try {
-            const totalMessages = StatsModel.getTotalMessages.get();
-            const totalContacts = StatsModel.getTotalContacts.get();
-            const unreadMessages = StatsModel.getUnreadMessages.get();
+            const totalMessages = await StatsModel.getTotalMessages();
+            const totalContacts = await StatsModel.getTotalContacts();
+            const unreadMessages = await StatsModel.getUnreadMessages();
 
             res.json({
                 totalMessages: totalMessages.count,
@@ -82,10 +68,10 @@ class ContactController {
     /**
      * PUT /api/contacts/:phoneNumber/read - Reset unread count
      */
-    static resetUnreadCount(req, res) {
+    static async resetUnreadCount(req, res) {
         try {
             const { phoneNumber } = req.params;
-            ContactModel.resetUnreadCount.run(phoneNumber);
+            await ContactModel.resetUnreadCount(phoneNumber);
             res.json({ success: true });
         } catch (error) {
             console.error('Error resetting unread count:', error);
@@ -96,16 +82,11 @@ class ContactController {
     /**
      * DELETE /api/contacts/:phoneNumber - Delete contact and all their messages
      */
-    static deleteContact(req, res) {
+    static async deleteContact(req, res) {
         try {
             const { phoneNumber } = req.params;
-
-            // Delete all messages from this contact
-            ContactModel.deleteMessages.run(phoneNumber);
-
-            // Delete the contact
-            ContactModel.deleteContact.run(phoneNumber);
-
+            await ContactModel.deleteMessages(phoneNumber);
+            await ContactModel.deleteContact(phoneNumber);
             res.json({ success: true, message: 'Contact deleted successfully' });
         } catch (error) {
             console.error('Error deleting contact:', error);
@@ -116,17 +97,16 @@ class ContactController {
     /**
      * GET /api/contacts/export - Export contacts as CSV
      */
-    static exportCSV(req, res) {
+    static async exportCSV(req, res) {
         try {
-            const contacts = ContactModel.getAll.all();
+            const contacts = await ContactModel.getAll();
 
-            // Create CSV content
             const headers = ['Name', 'Phone Number', 'Unread Count', 'Last Message At'];
             const rows = contacts.map(c => [
                 c.profile_name,
                 c.phone_number,
                 c.unread_count,
-                new Date(c.last_message_at * 1000).toISOString()
+                c.last_message_at ? new Date(c.last_message_at * 1000).toISOString() : ''
             ]);
 
             const csvContent = [
@@ -134,7 +114,6 @@ class ContactController {
                 ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
             ].join('\n');
 
-            // Set headers for file download
             res.setHeader('Content-Type', 'text/csv');
             res.setHeader('Content-Disposition', `attachment; filename="contacts-${Date.now()}.csv"`);
             res.send(csvContent);
@@ -145,52 +124,30 @@ class ContactController {
     }
 
     /**
-     * GET /api/contacts/export/filtered - Export contacts with filters (segment, temperature, status)
+     * GET /api/contacts/export/filtered - Export contacts with filters
      */
-    static exportCSVFiltered(req, res) {
+    static async exportCSVFiltered(req, res) {
         try {
             const { segment, temperature, status } = req.query;
-            const db = require('../config/database');
 
-            let query = `
-                SELECT DISTINCT c.* 
-                FROM contacts c
-            `;
-            const conditions = [];
-            const params = [];
+            let query = supabase.from('contacts').select('*');
 
-            // Join with segments if filtering by segment
+            if (status) query = query.eq('status', status);
+            if (temperature) query = query.eq('lead_temperature', temperature);
+
             if (segment) {
-                query += `
-                    INNER JOIN contact_segments cs ON c.id = cs.contact_id
-                    INNER JOIN segments s ON cs.segment_id = s.id
-                `;
-                conditions.push('s.name = ?');
-                params.push(segment);
+                // Get segment ID first
+                const { data: seg } = await supabase.from('segments').select('id').eq('name', segment).single();
+                if (seg) {
+                    const { data: cs } = await supabase.from('contact_segments').select('contact_id').eq('segment_id', seg.id);
+                    const ids = cs.map(r => r.contact_id);
+                    query = query.in('id', ids);
+                }
             }
 
-            // Add temperature filter
-            if (temperature) {
-                conditions.push('c.lead_temperature = ?');
-                params.push(temperature);
-            }
+            const { data: contacts, error } = await query.order('last_message_at', { ascending: false });
+            if (error) throw error;
 
-            // Add status filter
-            if (status) {
-                conditions.push('c.status = ?');
-                params.push(status);
-            }
-
-            if (conditions.length > 0) {
-                query += ' WHERE ' + conditions.join(' AND ');
-            }
-
-            query += ' ORDER BY c.last_message_at DESC';
-
-            const stmt = db.prepare(query);
-            const contacts = stmt.all(...params);
-
-            // Create CSV content with enhanced headers
             const headers = ['Name', 'Phone Number', 'Status', 'Temperature', 'Unread Count', 'Button Clicks', 'Last Message At'];
             const rows = contacts.map(c => [
                 c.profile_name,
@@ -199,7 +156,7 @@ class ContactController {
                 c.lead_temperature,
                 c.unread_count,
                 c.button_click_count || 0,
-                new Date(c.last_message_at * 1000).toISOString()
+                c.last_message_at ? new Date(c.last_message_at * 1000).toISOString() : ''
             ]);
 
             const csvContent = [
@@ -207,7 +164,6 @@ class ContactController {
                 ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
             ].join('\n');
 
-            // Set headers for file download with filter info
             const filterSuffix = [segment, temperature, status].filter(Boolean).join('-') || 'all';
             res.setHeader('Content-Type', 'text/csv');
             res.setHeader('Content-Disposition', `attachment; filename="contacts-${filterSuffix}-${Date.now()}.csv"`);
@@ -219,9 +175,9 @@ class ContactController {
     }
 
     /**
-     * POST /api/contacts/import - Import contacts from CSV with optional segment assignment
+     * POST /api/contacts/import - Import contacts from CSV
      */
-    static importCSV(req, res) {
+    static async importCSV(req, res) {
         try {
             const { contacts, segmentId } = req.body;
 
@@ -235,24 +191,19 @@ class ContactController {
 
             for (const contact of contacts) {
                 try {
-                    // Check if contact already exists
-                    const existing = ContactModel.getByPhone.get(contact.phone_number);
+                    const existing = await ContactModel.getByPhone(contact.phone_number);
 
                     if (!existing) {
-                        // Insert new contact
-                        const result = ContactModel.insert.run(
+                        const newContact = await ContactModel.insert(
                             contact.phone_number,
                             contact.profile_name || 'Unknown',
                             Math.floor(Date.now() / 1000),
-                            0 // unread_count
+                            0
                         );
                         imported++;
-                        importedContactIds.push(result.lastInsertRowid);
+                        if (newContact) importedContactIds.push(newContact.id);
                     } else {
-                        // Contact exists, still add to segment if specified
-                        if (segmentId) {
-                            importedContactIds.push(existing.id);
-                        }
+                        if (segmentId) importedContactIds.push(existing.id);
                         skipped++;
                     }
                 } catch (err) {
@@ -261,11 +212,9 @@ class ContactController {
                 }
             }
 
-            // Add all contacts to segment if specified
             if (segmentId && importedContactIds.length > 0) {
-                const SegmentModel = require('../models/segmentModel');
-                SegmentModel.addMultipleContacts(segmentId, importedContactIds);
-                console.log(`✅ Added ${importedContactIds.length} contacts to segment ${segmentId}`);
+                const inserts = importedContactIds.map(id => ({ contact_id: id, segment_id: segmentId }));
+                await supabase.from('contact_segments').upsert(inserts, { onConflict: 'contact_id,segment_id' });
             }
 
             res.json({
@@ -284,7 +233,7 @@ class ContactController {
     /**
      * POST /api/contacts - Add single contact
      */
-    static addContact(req, res) {
+    static async addContact(req, res) {
         try {
             const { phone_number, profile_name } = req.body;
 
@@ -292,25 +241,13 @@ class ContactController {
                 return res.status(400).json({ error: 'Phone number and name are required' });
             }
 
-            // Check if contact already exists
-            const existing = ContactModel.getByPhone.get(phone_number);
-
+            const existing = await ContactModel.getByPhone(phone_number);
             if (existing) {
                 return res.status(409).json({ error: 'Contact already exists' });
             }
 
-            // Insert new contact
-            ContactModel.insert.run(
-                phone_number,
-                profile_name,
-                Math.floor(Date.now() / 1000),
-                0 // unread_count
-            );
-
-            res.json({
-                success: true,
-                message: 'Contact added successfully'
-            });
+            await ContactModel.insert(phone_number, profile_name, Math.floor(Date.now() / 1000), 0);
+            res.json({ success: true, message: 'Contact added successfully' });
         } catch (error) {
             console.error('Error adding contact:', error);
             res.status(500).json({ error: 'Failed to add contact' });
@@ -320,17 +257,17 @@ class ContactController {
     /**
      * PUT /api/contacts/:phoneNumber/status - Update contact status
      */
-    static updateStatus(req, res) {
+    static async updateStatus(req, res) {
         try {
             const { phoneNumber } = req.params;
             const { status } = req.body;
 
-            const validStatuses = ['ongoing', 'converted', 'rejected', 'human_takeover'];
+            const validStatuses = ['ongoing', 'converted', 'rejected', 'human_takeover', 'follow_up'];
             if (!validStatuses.includes(status)) {
                 return res.status(400).json({ error: 'Invalid status' });
             }
 
-            ContactModel.updateStatus.run(status, phoneNumber);
+            await ContactModel.updateStatus(status, phoneNumber);
             res.json({ success: true, status });
         } catch (error) {
             console.error('Error updating status:', error);
@@ -341,7 +278,7 @@ class ContactController {
     /**
      * PUT /api/contacts/:phoneNumber/temperature - Update lead temperature
      */
-    static updateTemperature(req, res) {
+    static async updateTemperature(req, res) {
         try {
             const { phoneNumber } = req.params;
             const { temperature } = req.body;
@@ -351,7 +288,7 @@ class ContactController {
                 return res.status(400).json({ error: 'Invalid temperature' });
             }
 
-            ContactModel.updateTemperature.run(temperature, phoneNumber);
+            await ContactModel.updateTemperature(temperature, phoneNumber);
             res.json({ success: true, temperature });
         } catch (error) {
             console.error('Error updating temperature:', error);
@@ -362,7 +299,7 @@ class ContactController {
     /**
      * PUT /api/contacts/:phoneNumber/name - Update contact name
      */
-    static updateName(req, res) {
+    static async updateName(req, res) {
         try {
             const { phoneNumber } = req.params;
             const { name } = req.body;
@@ -371,59 +308,11 @@ class ContactController {
                 return res.status(400).json({ error: 'Name cannot be empty' });
             }
 
-            ContactModel.updateName.run(name.trim(), phoneNumber);
+            await ContactModel.updateName(name.trim(), phoneNumber);
             res.json({ success: true, name: name.trim() });
         } catch (error) {
             console.error('Error updating contact name:', error);
             res.status(500).json({ error: 'Failed to update contact name' });
-        }
-    }
-
-
-    /**
-     * GET /api/contacts/export/filtered - Export contacts with filters
-     */
-    static exportCSVFiltered(req, res) {
-        try {
-            const { status, temperature } = req.query;
-
-            let contacts;
-            if (status && temperature) {
-                contacts = ContactModel.getByStatusAndTemp.all(status, temperature);
-            } else if (status) {
-                contacts = ContactModel.getByStatus.all(status);
-            } else if (temperature) {
-                contacts = ContactModel.getByTemperature.all(temperature);
-            } else {
-                contacts = ContactModel.getAll.all();
-            }
-
-            // Create CSV content
-            const headers = ['Name', 'Phone Number', 'Status', 'Temperature', 'Unread Count', 'Last Message At'];
-            const rows = contacts.map(c => [
-                c.profile_name,
-                c.phone_number,
-                c.status,
-                c.lead_temperature,
-                c.unread_count,
-                new Date(c.last_message_at * 1000).toISOString()
-            ]);
-
-            const csvContent = [
-                headers.join(','),
-                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-            ].join('\n');
-
-            // Set headers for file download
-            const filename = status || temperature
-                ? `contacts-${status || ''}-${temperature || ''}-${Date.now()}.csv`
-                : `contacts-${Date.now()}.csv`;
-            res.setHeader('Content-Type', 'text/csv');
-            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-            res.send(csvContent);
-        } catch (error) {
-            console.error('Error exporting CSV:', error);
-            res.status(500).json({ error: 'Failed to export contacts' });
         }
     }
 }

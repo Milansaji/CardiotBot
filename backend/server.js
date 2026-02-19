@@ -1,8 +1,20 @@
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+
+// Try loading .env from current directory first, then parent directory
+if (fs.existsSync('.env')) {
+    require('dotenv').config();
+} else if (fs.existsSync('../.env')) {
+    require('dotenv').config({ path: path.join(__dirname, '../.env') });
+} else {
+    console.warn('⚠️  No .env file found! Please create one with your credentials.');
+}
+
 const app = require('./app');
 
 // Initialize database (this will create tables if they don't exist)
-require('./config/database');
+// Initialize Supabase client
+require('./config/supabase');
 
 const PORT = process.env.PORT || 3001;
 

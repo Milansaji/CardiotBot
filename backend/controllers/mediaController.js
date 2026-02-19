@@ -21,14 +21,12 @@ class MediaController {
             console.log('📤 Uploading media:', file.originalname, file.mimetype, file.size);
 
             const formData = new FormData();
-
             formData.append('file', fs.createReadStream(file.path), {
                 filename: file.originalname,
                 contentType: file.mimetype
             });
             formData.append('messaging_product', 'whatsapp');
 
-            // Upload to WhatsApp
             const response = await axios.post(
                 `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_NUMBER_ID}/media`,
                 formData,
@@ -40,7 +38,6 @@ class MediaController {
                 }
             );
 
-            // Delete temp file
             try { fs.unlinkSync(file.path); } catch (e) { }
 
             console.log('✅ Media uploaded successfully:', response.data.id);
@@ -55,7 +52,6 @@ class MediaController {
         } catch (error) {
             console.error('❌ Error uploading media:', error.response?.data || error.message);
 
-            // Clean up temp file on error
             if (req.file && fs.existsSync(req.file.path)) {
                 try { fs.unlinkSync(req.file.path); } catch (e) { }
             }
@@ -82,38 +78,23 @@ class MediaController {
 
             console.log('📨 Sending media message:', { to, mediaType, mediaId });
 
-            // Prepare message payload based on media type
-            let messagePayload = {
+            const messagePayload = {
                 messaging_product: 'whatsapp',
                 recipient_type: 'individual',
                 to: to,
                 type: mediaType
             };
 
-            // Add media object based on type
             if (mediaType === 'image') {
-                messagePayload.image = {
-                    id: mediaId,
-                    caption: caption || ''
-                };
+                messagePayload.image = { id: mediaId, caption: caption || '' };
             } else if (mediaType === 'document') {
-                messagePayload.document = {
-                    id: mediaId,
-                    caption: caption || '',
-                    filename: filename || 'document'
-                };
+                messagePayload.document = { id: mediaId, caption: caption || '', filename: filename || 'document' };
             } else if (mediaType === 'audio') {
-                messagePayload.audio = {
-                    id: mediaId
-                };
+                messagePayload.audio = { id: mediaId };
             } else if (mediaType === 'video') {
-                messagePayload.video = {
-                    id: mediaId,
-                    caption: caption || ''
-                };
+                messagePayload.video = { id: mediaId, caption: caption || '' };
             }
 
-            // Send via WhatsApp API
             const response = await axios.post(
                 `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
                 messagePayload,
@@ -128,27 +109,27 @@ class MediaController {
             const sentMessageId = response.data.messages[0].id;
             const timestamp = Math.floor(Date.now() / 1000);
 
-            // Store the sent media message in the database so it shows in chat
             try {
-                // Build a descriptive label for the media
                 const mediaLabel = caption || filename || (
                     mediaType === 'image' ? '📷 Image' :
                         mediaType === 'audio' ? '🎤 Voice message' :
                             mediaType === 'video' ? '🎥 Video' :
                                 '📎 Document'
                 );
-                MessageModel.insert.run(
-                    sentMessageId,
-                    to,
-                    'Agent',        // profile_name = Agent (not Bot)
-                    mediaType,
-                    mediaLabel,
-                    mediaId,        // media_id
-                    null,           // media_url (not available until webhook confirms)
-                    null,           // media_mime_type
+
+                await MessageModel.insert({
+                    whatsapp_message_id: sentMessageId,
+                    from_number: to,
+                    profile_name: 'Agent',
+                    message_type: mediaType,
+                    message_text: mediaLabel,
+                    media_id: mediaId,
+                    media_url: null,
+                    media_mime_type: null, // We don't know it yet
                     timestamp,
-                    'outgoing'      // direction = outgoing (shows on right side)
-                );
+                    direction: 'outgoing'
+                });
+
                 console.log('✅ Media message stored in DB as outgoing/Agent');
             } catch (dbErr) {
                 console.error('⚠️ Failed to store media message in DB:', dbErr.message);

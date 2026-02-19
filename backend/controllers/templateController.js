@@ -1,6 +1,6 @@
 const templateService = require('../services/templateService');
 const SegmentModel = require('../models/segmentModel');
-const db = require('../config/database');
+const supabase = require('../config/supabase');
 
 class TemplateController {
     /**
@@ -98,12 +98,17 @@ class TemplateController {
 
             // Get contacts from segment
             if (segmentId) {
-                contacts = SegmentModel.getContacts.all(segmentId);
+                contacts = await SegmentModel.getContacts(segmentId);
             }
             // Get specific contacts by IDs
             else if (contactIds && contactIds.length > 0) {
-                const getContact = db.prepare('SELECT * FROM contacts WHERE id = ?');
-                contacts = contactIds.map(id => getContact.get(id)).filter(Boolean);
+                const { data, error } = await supabase
+                    .from('contacts')
+                    .select('*')
+                    .in('id', contactIds);
+
+                if (error) throw error;
+                contacts = data;
             } else {
                 return res.status(400).json({
                     error: 'Either segmentId or contactIds must be provided'
@@ -117,14 +122,22 @@ class TemplateController {
             console.log(`📤 Starting bulk send to ${contacts.length} contacts`);
 
             // Create bulk send record
-            const createBulkSend = db.prepare(`
-                INSERT INTO template_messages (template_name, segment_id, total_sent)
-                VALUES (?, ?, 0)
-            `);
-            const bulkSendRecord = createBulkSend.run(templateName, segmentId || null);
-            const bulkSendId = bulkSendRecord.lastInsertRowid;
+            const { data: bulkSendRecord, error: createError } = await supabase
+                .from('template_messages')
+                .insert({
+                    template_name: templateName,
+                    segment_id: segmentId || null,
+                    total_sent: 0
+                })
+                .select()
+                .single();
+
+            if (createError) throw createError;
+            const bulkSendId = bulkSendRecord.id;
 
             // Send in background (don't wait for completion)
+            // Note: In a serverless environment (like Vercel functions), this pattern might not work 
+            // and you'd need a queue. For a persistent Node server, this is fine.
             setImmediate(async () => {
                 try {
                     const results = await templateService.sendBulkTemplateMessages(
@@ -132,18 +145,21 @@ class TemplateController {
                         templateName,
                         languageCode,
                         components,
-                        (progress) => {
+                        async (progress) => {
+                            // Optional: Update progress in DB if you want real-time progress bars
+                            // For now we just log to console to save DB writes
                             console.log(`📊 Progress: ${progress.percentage}% (${progress.current}/${progress.total})`);
                         }
                     );
 
                     // Update bulk send record with actual results
-                    const updateBulkSend = db.prepare(`
-                        UPDATE template_messages 
-                        SET total_sent = ?, total_failed = ?
-                        WHERE id = ?
-                    `);
-                    updateBulkSend.run(results.sent, results.failed, bulkSendId);
+                    await supabase
+                        .from('template_messages')
+                        .update({
+                            total_sent: results.sent,
+                            total_failed: results.failed
+                        })
+                        .eq('id', bulkSendId);
 
                     console.log(`✅ Bulk send ${bulkSendId} completed: ${results.sent} sent, ${results.failed} failed out of ${results.total}`);
                 } catch (error) {
@@ -171,14 +187,17 @@ class TemplateController {
     /**
      * GET /api/bulk/status/:jobId - Get bulk send status
      */
-    static getBulkStatus(req, res) {
+    static async getBulkStatus(req, res) {
         try {
             const { jobId } = req.params;
 
-            const getBulkSend = db.prepare(`
-                SELECT * FROM template_messages WHERE id = ?
-            `);
-            const bulkSend = getBulkSend.get(jobId);
+            const { data: bulkSend, error } = await supabase
+                .from('template_messages')
+                .select('*')
+                .eq('id', jobId)
+                .single();
+
+            if (error && error.code !== 'PGRST116') throw error;
 
             if (!bulkSend) {
                 return res.status(404).json({ error: 'Bulk send job not found' });
@@ -194,18 +213,23 @@ class TemplateController {
     /**
      * GET /api/bulk/history - Get bulk send history
      */
-    static getBulkHistory(req, res) {
+    static async getBulkHistory(req, res) {
         try {
-            const getHistory = db.prepare(`
-                SELECT tm.*, s.name as segment_name
-                FROM template_messages tm
-                LEFT JOIN segments s ON tm.segment_id = s.id
-                ORDER BY tm.sent_at DESC
-                LIMIT 50
-            `);
+            const { data: history, error } = await supabase
+                .from('template_messages')
+                .select('*, segments(name)')
+                .order('sent_at', { ascending: false })
+                .limit(50);
 
-            const history = getHistory.all();
-            res.json(history);
+            if (error) throw error;
+
+            // Flatten segment name
+            const result = history.map(item => ({
+                ...item,
+                segment_name: item.segments?.name
+            }));
+
+            res.json(result);
         } catch (error) {
             console.error('Error fetching bulk send history:', error);
             res.status(500).json({ error: 'Failed to fetch history' });

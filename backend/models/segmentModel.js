@@ -1,99 +1,127 @@
-const db = require('../config/database');
+const supabase = require('../config/supabase');
 
 class SegmentModel {
-    // Get all segments
-    static getAll = db.prepare(`
-        SELECT s.*, 
-               COUNT(DISTINCT cs.contact_id) as contact_count
-        FROM segments s
-        LEFT JOIN contact_segments cs ON s.id = cs.segment_id
-        GROUP BY s.id
-        ORDER BY s.created_at DESC
-    `);
-
-    // Get segment by ID
-    static getById = db.prepare(`
-        SELECT s.*, 
-               COUNT(DISTINCT cs.contact_id) as contact_count
-        FROM segments s
-        LEFT JOIN contact_segments cs ON s.id = cs.segment_id
-        WHERE s.id = ?
-        GROUP BY s.id
-    `);
-
-    // Get segment by name
-    static getByName = db.prepare(`
-        SELECT * FROM segments WHERE name = ?
-    `);
-
-    // Create segment
-    static create = db.prepare(`
-        INSERT INTO segments (name, description)
-        VALUES (?, ?)
-    `);
-
-    // Update segment
-    static update = db.prepare(`
-        UPDATE segments 
-        SET name = ?, description = ?
-        WHERE id = ?
-    `);
-
-    // Delete segment
-    static delete = db.prepare(`
-        DELETE FROM segments WHERE id = ?
-    `);
-
-    // Get contacts in segment
-    static getContacts = db.prepare(`
-        SELECT c.*, cs.added_at as segment_added_at
-        FROM contacts c
-        INNER JOIN contact_segments cs ON c.id = cs.contact_id
-        WHERE cs.segment_id = ?
-        ORDER BY cs.added_at DESC
-    `);
-
-    // Add contact to segment
-    static addContact = db.prepare(`
-        INSERT OR IGNORE INTO contact_segments (contact_id, segment_id)
-        VALUES (?, ?)
-    `);
-
-    // Remove contact from segment
-    static removeContact = db.prepare(`
-        DELETE FROM contact_segments 
-        WHERE contact_id = ? AND segment_id = ?
-    `);
-
-    // Get segments for a contact
-    static getContactSegments = db.prepare(`
-        SELECT s.*
-        FROM segments s
-        INNER JOIN contact_segments cs ON s.id = cs.segment_id
-        WHERE cs.contact_id = ?
-        ORDER BY cs.added_at DESC
-    `);
-
-    // Add multiple contacts to segment
-    static addMultipleContacts(segmentId, contactIds) {
-        const insert = db.prepare(`
-            INSERT OR IGNORE INTO contact_segments (contact_id, segment_id)
-            VALUES (?, ?)
-        `);
-
-        const insertMany = db.transaction((contacts) => {
-            for (const contactId of contacts) {
-                insert.run(contactId, segmentId);
-            }
-        });
-
-        insertMany(contactIds);
+    static async getAll() {
+        const { data, error } = await supabase
+            .from('segments')
+            .select('*, contact_segments(count)')
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        // Map contact count
+        return data.map(s => ({
+            ...s,
+            contact_count: s.contact_segments?.[0]?.count || 0,
+            contact_segments: undefined
+        }));
     }
 
-    // Get contact ID by phone number
-    static getContactIdByPhone = db.prepare(`
-        SELECT id FROM contacts WHERE phone_number = ?
-    `);
+    static async getById(id) {
+        const { data, error } = await supabase
+            .from('segments')
+            .select('*')
+            .eq('id', id)
+            .single();
+        if (error && error.code !== 'PGRST116') throw error;
+        if (!data) return null;
+
+        // Get contact count
+        const { count } = await supabase
+            .from('contact_segments')
+            .select('*', { count: 'exact', head: true })
+            .eq('segment_id', id);
+
+        return { ...data, contact_count: count || 0 };
+    }
+
+    static async getByName(name) {
+        const { data, error } = await supabase
+            .from('segments')
+            .select('*')
+            .eq('name', name)
+            .single();
+        if (error && error.code !== 'PGRST116') throw error;
+        return data;
+    }
+
+    static async create(name, description) {
+        const { data, error } = await supabase
+            .from('segments')
+            .insert({ name, description })
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    static async update(id, name, description) {
+        const { error } = await supabase
+            .from('segments')
+            .update({ name, description })
+            .eq('id', id);
+        if (error) throw error;
+    }
+
+    static async delete(id) {
+        const { error } = await supabase
+            .from('segments')
+            .delete()
+            .eq('id', id);
+        if (error) throw error;
+    }
+
+    static async getContacts(segmentId) {
+        const { data, error } = await supabase
+            .from('contact_segments')
+            .select('contacts(*), added_at')
+            .eq('segment_id', segmentId)
+            .order('added_at', { ascending: false });
+        if (error) throw error;
+        return data.map(row => ({ ...row.contacts, segment_added_at: row.added_at }));
+    }
+
+    static async addContact(contactId, segmentId) {
+        const { error } = await supabase
+            .from('contact_segments')
+            .upsert({ contact_id: contactId, segment_id: segmentId }, { onConflict: 'contact_id,segment_id' });
+        if (error) throw error;
+    }
+
+    static async removeContact(contactId, segmentId) {
+        const { error } = await supabase
+            .from('contact_segments')
+            .delete()
+            .eq('contact_id', contactId)
+            .eq('segment_id', segmentId);
+        if (error) throw error;
+    }
+
+    static async getContactSegments(contactId) {
+        const { data, error } = await supabase
+            .from('contact_segments')
+            .select('segments(*), added_at')
+            .eq('contact_id', contactId)
+            .order('added_at', { ascending: false });
+        if (error) throw error;
+        return data.map(row => row.segments);
+    }
+
+    static async addMultipleContacts(segmentId, contactIds) {
+        const inserts = contactIds.map(id => ({ contact_id: id, segment_id: segmentId }));
+        const { error } = await supabase
+            .from('contact_segments')
+            .upsert(inserts, { onConflict: 'contact_id,segment_id' });
+        if (error) throw error;
+    }
+
+    static async getContactIdByPhone(phone_number) {
+        const { data, error } = await supabase
+            .from('contacts')
+            .select('id')
+            .eq('phone_number', phone_number)
+            .single();
+        if (error && error.code !== 'PGRST116') throw error;
+        return data;
+    }
 }
 
 module.exports = SegmentModel;

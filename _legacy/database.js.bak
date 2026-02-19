@@ -42,7 +42,15 @@ db.exec(`
     workflow_id INTEGER,
     workflow_step INTEGER DEFAULT 0,
     workflow_paused INTEGER DEFAULT 0,
-    last_workflow_sent_at INTEGER
+    last_workflow_sent_at INTEGER,
+    assigned_agent_id INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS agents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE,
+    created_at INTEGER DEFAULT (strftime('%s', 'now'))
   );
 
   CREATE TABLE IF NOT EXISTS segments (
@@ -134,6 +142,25 @@ db.exec(`
 try {
   db.exec(`ALTER TABLE template_messages ADD COLUMN total_failed INTEGER DEFAULT 0`);
   console.log('✅ Migration: added total_failed column to template_messages');
+} catch (e) {
+  // Column already exists - that's fine
+}
+
+try {
+  db.exec(`CREATE TABLE IF NOT EXISTS agents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE,
+    created_at INTEGER DEFAULT (strftime('%s', 'now'))
+  )`);
+  console.log('✅ Migration: created agents table');
+} catch (e) {
+  // Table already exists
+}
+
+try {
+  db.exec(`ALTER TABLE contacts ADD COLUMN assigned_agent_id INTEGER`);
+  console.log('✅ Migration: added assigned_agent_id column to contacts');
 } catch (e) {
   // Column already exists - that's fine
 }

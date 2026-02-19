@@ -5,37 +5,34 @@ import {
   MessageSquare,
   Contact,
   Users,
+  UserCheck,
   ChevronLeft,
   ChevronRight,
   LogOut,
   Menu,
 } from "lucide-react";
 
+interface SidebarContentProps {
+  collapsed: boolean;
+  setCollapsed?: (collapsed: boolean) => void;
+  isMobile?: boolean;
+}
+
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: MessageSquare, label: "Conversations", path: "/conversations" },
   { icon: Contact, label: "Contacts", path: "/contacts" },
   { icon: Users, label: "Segments", path: "/segments" },
+  { icon: UserCheck, label: "Agents", path: "/agents" },
 ];
 
-const activeAgents = [
-  { name: "Sarah K.", avatar: "SK", online: true },
-  { name: "Mike R.", avatar: "MR", online: true },
-  { name: "Anna L.", avatar: "AL", online: true },
-  { name: "James P.", avatar: "JP", online: false },
-];
-
-export function AppSidebar() {
+export function SidebarContent({ collapsed, setCollapsed, isMobile = false }: SidebarContentProps) {
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside
-      className={`relative h-full bg-white border-r border-slate-200 flex flex-col transition-all duration-300 z-20 ${collapsed ? "w-16" : "w-64"
-        }`}
-    >
+    <div className="flex flex-col h-full bg-white">
       {/* Header / Logo */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-slate-100">
+      <div className={`h-16 flex items-center ${collapsed ? 'justify-center' : 'justify-between px-4'} border-b border-slate-100`}>
         {!collapsed && (
           <div className="flex items-center gap-2">
             <img
@@ -49,12 +46,15 @@ export function AppSidebar() {
             </div>
           </div>
         )}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors"
-        >
-          {collapsed ? <Menu className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
+        {/* Collapse button - only show if setCollapsed provided and not mobile */}
+        {setCollapsed && !isMobile && (
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors"
+          >
+            {collapsed ? <Menu className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -68,7 +68,7 @@ export function AppSidebar() {
               className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all duration-200 group relative ${isActive
                 ? "bg-slate-100 text-blue-600 font-medium"
                 : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`}
+                } ${collapsed ? 'justify-center' : ''}`}
             >
               <item.icon
                 className={`w-4 h-4 transition-colors ${isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"
@@ -83,7 +83,6 @@ export function AppSidebar() {
         })}
       </nav>
 
-
       {/* User Profile / Logout */}
       <div className="p-3 border-t border-slate-100">
         <button className={`w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-red-50 text-slate-600 hover:text-red-600 transition-colors ${collapsed ? 'justify-center' : ''}`}>
@@ -91,6 +90,19 @@ export function AppSidebar() {
           {!collapsed && <span className="text-sm font-medium">Logout</span>}
         </button>
       </div>
+    </div>
+  );
+}
+
+export function AppSidebar() {
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <aside
+      className={`relative h-full bg-white border-r border-slate-200 hidden md:flex flex-col transition-all duration-300 z-20 ${collapsed ? "w-16" : "w-64"
+        }`}
+    >
+      <SidebarContent collapsed={collapsed} setCollapsed={setCollapsed} />
     </aside>
   );
 }

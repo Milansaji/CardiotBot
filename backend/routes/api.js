@@ -6,6 +6,7 @@ const MediaController = require('../controllers/mediaController');
 const SegmentController = require('../controllers/segmentController');
 const TemplateController = require('../controllers/templateController');
 const WorkflowController = require('../controllers/workflowController');
+const AgentController = require('../controllers/agentController');
 const upload = require('../middleware/upload');
 
 // Message routes
@@ -67,5 +68,13 @@ router.post('/media/send', MediaController.sendMediaMessage);
 // Stats routes
 router.get('/stats', ContactController.getStats);
 router.get('/dashboard/stats', ContactController.getDashboardStats);
+
+// Agent routes
+router.get('/agents', AgentController.getAllAgents);
+router.post('/agents', AgentController.createAgent);
+router.put('/agents/:id', AgentController.updateAgent);
+router.delete('/agents/:id', AgentController.deleteAgent);
+router.get('/agents/:id/contacts', AgentController.getAgentContacts);
+router.put('/contacts/:phoneNumber/agent', AgentController.assignAgent);
 
 module.exports = router;

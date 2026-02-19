@@ -16,12 +16,16 @@ import {
   FileText,
   MessageSquare,
   StopCircle,
+  ChevronLeft,
+  UserCheck,
 } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useContacts, useMessages, useSendMessage, useResetUnreadCount, useUpdateContactStatus, useUpdateContactTemperature, useSendMediaMessage } from "../hooks/useWhatsApp";
 import { useAudioRecorder } from 'react-audio-voice-recorder';
 import type { WhatsAppContact, WhatsAppMessage, DashboardConversation, DashboardMessage } from "../types/whatsapp";
 import { formatDistanceToNow } from "date-fns";
+import * as api from '../lib/api';
 
 const statusColors: Record<string, string> = {
   ongoing: "bg-blue-100 text-blue-700",
@@ -98,6 +102,7 @@ const Conversations = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Stats & Mutations
+  const queryClient = useQueryClient();
   const { data: contacts = [], isLoading: contactsLoading } = useContacts();
   const { data: messages = [], isLoading: messagesLoading } = useMessages(selectedPhone);
   const sendMessageMutation = useSendMessage();
@@ -105,6 +110,14 @@ const Conversations = () => {
   const updateStatusMutation = useUpdateContactStatus();
   const updateTempMutation = useUpdateContactTemperature();
   const sendMediaMutation = useSendMediaMessage();
+
+  // Agents
+  const { data: agents = [] } = useQuery({ queryKey: ['agents'], queryFn: api.getAgents });
+  const assignAgentMutation = useMutation({
+    mutationFn: ({ phoneNumber, agentId }: { phoneNumber: string; agentId: string | null }) =>
+      api.assignAgentToContact(phoneNumber, agentId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contacts'] }),
+  });
 
   // Media & Keyboard State
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -267,7 +280,8 @@ const Conversations = () => {
 
   // Effects
   useEffect(() => {
-    if (!selectedPhone && conversations.length > 0) {
+    // Only auto-select first conversation on desktop
+    if (!selectedPhone && conversations.length > 0 && window.innerWidth >= 768) {
       setSelectedPhone(conversations[0].id);
     }
   }, [contactsLoading, conversations.length]);
@@ -288,7 +302,7 @@ const Conversations = () => {
     <div className="flex bg-white h-[calc(100vh-2rem)] border border-slate-200 rounded-lg shadow-sm overflow-hidden animate-fade-in">
 
       {/* LEFT SIDEBAR: Conversation List */}
-      <div className="w-80 border-r border-slate-200 flex flex-col bg-slate-50/50">
+      <div className={`border-r border-slate-200 flex flex-col bg-slate-50/50 w-full md:w-80 ${selectedPhone ? 'hidden md:flex' : 'flex'}`}>
 
         {/* Search & Header */}
         <div className="p-4 border-b border-slate-200 bg-white z-10">
@@ -373,11 +387,17 @@ const Conversations = () => {
 
       {/* RIGHT SIDE: Chat Area */}
       {selected ? (
-        <div className="flex-1 flex flex-col bg-white overflow-hidden relative">
+        <div className={`flex-1 flex flex-col bg-white overflow-hidden relative ${!selectedPhone ? 'hidden md:flex' : 'flex'}`}>
 
           {/* Header */}
           <div className="h-16 px-4 border-b border-slate-200 flex items-center justify-between bg-white z-20 shadow-sm">
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSelectedPhone("")}
+                className="md:hidden p-1.5 -ml-2 text-slate-500 hover:bg-slate-50 rounded-full"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
               <div className="w-9 h-9 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm border border-slate-200">
                 {selected.avatar}
               </div>
@@ -399,6 +419,26 @@ const Conversations = () => {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              {/* Agent Assignment - only shown for human_takeover */}
+              {selected.status === 'human_takeover' && (
+                <div className="flex items-center gap-1.5 mr-2">
+                  <UserCheck className="w-4 h-4 text-purple-500" />
+                  <select
+                    value={contacts.find((c: any) => c.phone_number === selectedPhone)?.assigned_agent_id || ''}
+                    onChange={(e) => assignAgentMutation.mutate({
+                      phoneNumber: selectedPhone,
+                      agentId: e.target.value || null
+                    })}
+                    className="text-xs border border-purple-200 rounded-md px-2 py-1 bg-purple-50 text-purple-700 outline-none focus:border-purple-400 cursor-pointer max-w-[130px]"
+                    title="Assign agent"
+                  >
+                    <option value="">Assign agent...</option>
+                    {agents.map((agent: any) => (
+                      <option key={agent.id} value={agent.id}>{agent.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-colors"><Search className="w-4 h-4" /></button>
               <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-colors"><Phone className="w-4 h-4" /></button>
               <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-colors"><MoreVertical className="w-4 h-4" /></button>
@@ -562,7 +602,7 @@ const Conversations = () => {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 text-slate-400">
+        <div className="flex-1 hidden md:flex flex-col items-center justify-center bg-slate-50 text-slate-400">
           <div className="w-20 h-20 rounded-full bg-white border border-slate-200 flex items-center justify-center mb-6 shadow-sm">
             <MessageSquare className="w-10 h-10 text-slate-300" />
           </div>

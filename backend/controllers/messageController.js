@@ -5,10 +5,10 @@ class MessageController {
     /**
      * GET /api/messages/:phoneNumber - Get messages for a contact
      */
-    static getMessages(req, res) {
+    static async getMessages(req, res) {
         try {
             const { phoneNumber } = req.params;
-            const messages = MessageModel.getByPhoneNumber.all(phoneNumber);
+            const messages = await MessageModel.getByPhoneNumber(phoneNumber);
             res.json(messages);
         } catch (error) {
             console.error('Error fetching messages:', error);
@@ -27,29 +27,27 @@ class MessageController {
                 return res.status(400).json({ error: 'Missing required fields: to, message' });
             }
 
-            // Send via WhatsApp API
             const result = await whatsappService.sendTextMessage(to, message);
 
             if (!result.success) {
                 throw new Error(result.error);
             }
 
-            // Store in database
             const messageId = result.messageId;
             const timestamp = Math.floor(Date.now() / 1000);
 
-            MessageModel.insert.run(
-                messageId,
-                to,
-                'You',
-                'text',
-                message,
-                null,     // media_id
-                null,     // media_url
-                null,     // media_mime_type
+            await MessageModel.insert({
+                whatsapp_message_id: messageId,
+                from_number: to,
+                profile_name: 'You',
+                message_type: 'text',
+                message_text: message,
+                media_id: null,
+                media_url: null,
+                media_mime_type: null,
                 timestamp,
-                'outgoing'
-            );
+                direction: 'outgoing'
+            });
 
             console.log(`✅ Message sent to ${to}`);
             res.json({ success: true, messageId });
@@ -65,7 +63,7 @@ class MessageController {
     /**
      * POST /api/bot-message - Store bot's sent message
      */
-    static storeBotMessage(req, res) {
+    static async storeBotMessage(req, res) {
         try {
             const {
                 whatsapp_message_id,
@@ -78,18 +76,18 @@ class MessageController {
 
             console.log(`📥 Bot message for ${to_number}: ${message_text}`);
 
-            MessageModel.insert.run(
+            await MessageModel.insert({
                 whatsapp_message_id,
-                to_number,
-                'Bot',
+                from_number: to_number,
+                profile_name: 'Bot',
                 message_type,
                 message_text,
-                null,
+                media_id: null,
                 media_url,
-                null,
+                media_mime_type: null,
                 timestamp,
-                'outgoing'
-            );
+                direction: 'outgoing'
+            });
 
             console.log('✅ Bot message stored');
             res.json({ success: true });
@@ -102,10 +100,10 @@ class MessageController {
     /**
      * PUT /api/messages/read/:phoneNumber - Mark messages as read
      */
-    static markAsRead(req, res) {
+    static async markAsRead(req, res) {
         try {
             const { phoneNumber } = req.params;
-            MessageModel.markAsRead.run(phoneNumber);
+            await MessageModel.markAsRead(phoneNumber);
             res.json({ success: true });
         } catch (error) {
             console.error('Error marking messages as read:', error);

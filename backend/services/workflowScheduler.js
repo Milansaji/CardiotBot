@@ -49,7 +49,7 @@ class WorkflowScheduler {
 
     async processInactiveLeads() {
         try {
-            const inactiveLeads = WorkflowModel.getInactiveLeadsForEnrollment();
+            const inactiveLeads = await WorkflowModel.getInactiveLeadsForEnrollment();
 
             if (inactiveLeads.length === 0) {
                 console.log('📊 No inactive leads to enroll');
@@ -61,7 +61,7 @@ class WorkflowScheduler {
             for (const lead of inactiveLeads) {
                 try {
                     // Enroll in workflow
-                    WorkflowModel.enrollContactInWorkflow(lead.id, lead.matched_workflow_id);
+                    await WorkflowModel.enrollContactInWorkflow(lead.id, lead.matched_workflow_id);
 
                     console.log(`✅ Enrolled ${lead.phone_number} in workflow "${lead.workflow_name}"`);
                 } catch (error) {
@@ -78,7 +78,7 @@ class WorkflowScheduler {
 
     async processWorkflowSteps() {
         try {
-            const contacts = WorkflowModel.getContactsForWorkflowStep();
+            const contacts = await WorkflowModel.getContactsForWorkflowStep();
 
             if (contacts.length === 0) {
                 console.log('📊 No workflow steps to process');
@@ -102,10 +102,10 @@ class WorkflowScheduler {
                     );
 
                     // Advance to next step
-                    WorkflowModel.advanceContactWorkflowStep(contact.id, contact.step_number);
+                    await WorkflowModel.advanceContactWorkflowStep(contact.id, contact.step_number);
 
                     // Log success
-                    WorkflowModel.logWorkflowMessage({
+                    await WorkflowModel.logWorkflowMessage({
                         contact_id: contact.id,
                         workflow_id: contact.workflow_id,
                         step_id: contact.step_id,
@@ -118,7 +118,7 @@ class WorkflowScheduler {
                     console.error(`❌ Failed to send to ${contact.phone_number}:`, error.message);
 
                     // Log failure
-                    WorkflowModel.logWorkflowMessage({
+                    await WorkflowModel.logWorkflowMessage({
                         contact_id: contact.id,
                         workflow_id: contact.workflow_id,
                         step_id: contact.step_id,
