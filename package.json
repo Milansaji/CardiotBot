@@ -6,7 +6,20 @@
   "scripts": {
     "start": "node backend/server.js",
     "dev": "nodemon backend/server.js",
-    "old": "node server.js"
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:start:prod": "pm2 start ecosystem.config.cjs --env production",
+    "pm2:stop": "pm2 stop all",
+    "pm2:restart": "pm2 restart all",
+    "pm2:reload": "pm2 reload all",
+    "pm2:delete": "pm2 delete all",
+    "pm2:logs": "pm2 logs",
+    "pm2:status": "pm2 list",
+    "pm2:save": "pm2 save",
+    "pm2:startup": "pm2 startup",
+    "build": "npm run build --prefix Frontend",
+    "build:all": "npm run build --prefix Frontend && npm run build --prefix cardiot-bot-main",
+    "install:all": "npm install && npm install --prefix Frontend && npm install --prefix cardiot-bot-main",
+    "deploy": "npm run build:all && npm run pm2:start:prod && pm2 save"
   },
   "keywords": [
     "whatsapp",
@@ -28,6 +41,7 @@
     "node-cron": "^4.2.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "nodemon": "^3.0.2",
+    "pm2": "^5.4.3"
   }
 }

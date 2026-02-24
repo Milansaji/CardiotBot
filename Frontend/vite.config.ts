@@ -10,24 +10,25 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     allowedHosts: [
       'first-basic-nitrogen-phrases.trycloudflare.com',
-      '.trycloudflare.com', // This allows all cloudflare tunnel subdomains
+      '.trycloudflare.com',
     ],
     hmr: {
       overlay: false,
     },
     proxy: {
-      '/api': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      },
-      '/health': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      },
-      '/media': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      },
+      '/api': { target: 'http://localhost:3001', changeOrigin: true },
+      '/health': { target: 'http://localhost:3001', changeOrigin: true },
+      '/media': { target: 'http://localhost:3001', changeOrigin: true },
+    },
+  },
+  // Used by `vite preview` — this is what PM2 runs in production
+  preview: {
+    host: "::",
+    port: 8080,
+    proxy: {
+      '/api': { target: 'http://localhost:3001', changeOrigin: true },
+      '/health': { target: 'http://localhost:3001', changeOrigin: true },
+      '/media': { target: 'http://localhost:3001', changeOrigin: true },
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
