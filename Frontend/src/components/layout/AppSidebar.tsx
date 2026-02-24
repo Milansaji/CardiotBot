@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../../lib/AuthContext";
 import {
   LayoutDashboard,
   MessageSquare,
@@ -10,6 +11,7 @@ import {
   ChevronRight,
   LogOut,
   Menu,
+  MapPin,
 } from "lucide-react";
 
 interface SidebarContentProps {
@@ -24,10 +26,12 @@ const navItems = [
   { icon: Contact, label: "Contacts", path: "/contacts" },
   { icon: Users, label: "Segments", path: "/segments" },
   { icon: UserCheck, label: "Agents", path: "/agents" },
+  { icon: MapPin, label: "Sources", path: "/sources" },
 ];
 
 export function SidebarContent({ collapsed, setCollapsed, isMobile = false }: SidebarContentProps) {
   const location = useLocation();
+  const { signOut } = useAuth();
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -85,7 +89,10 @@ export function SidebarContent({ collapsed, setCollapsed, isMobile = false }: Si
 
       {/* User Profile / Logout */}
       <div className="p-3 border-t border-slate-100">
-        <button className={`w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-red-50 text-slate-600 hover:text-red-600 transition-colors ${collapsed ? 'justify-center' : ''}`}>
+        <button
+          onClick={() => signOut()}
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-red-50 text-slate-600 hover:text-red-600 transition-colors ${collapsed ? 'justify-center' : ''}`}
+        >
           <LogOut className="w-4 h-4" />
           {!collapsed && <span className="text-sm font-medium">Logout</span>}
         </button>

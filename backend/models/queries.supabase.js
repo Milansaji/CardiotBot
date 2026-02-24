@@ -72,22 +72,24 @@ class MessageModel {
 // ============================================================
 class ContactModel {
     static async upsert(phone_number, profile_name, last_message_at) {
-        // Try insert first
+        // Check if contact already exists
         const { data: existing } = await supabase.from('contacts')
-            .select('id, unread_count')
+            .select('id, unread_count, profile_name')
             .eq('phone_number', phone_number)
             .single();
 
         if (existing) {
+            // Contact exists: update timestamp and unread count
+            // Do NOT overwrite profile_name — respect manually edited names
             const { error } = await supabase.from('contacts')
                 .update({
-                    profile_name,
                     last_message_at,
                     unread_count: (existing.unread_count || 0) + 1
                 })
                 .eq('phone_number', phone_number);
             if (error) throw error;
         } else {
+            // New contact: use WhatsApp profile name
             const { error } = await supabase.from('contacts').insert({
                 phone_number,
                 profile_name,
@@ -214,6 +216,22 @@ class ContactModel {
             .eq('id', id);
         if (error) throw error;
     }
+
+    static async updateSource(source, phone_number) {
+        const { error } = await supabase.from('contacts')
+            .update({ source })
+            .eq('phone_number', phone_number);
+        if (error) throw error;
+    }
+
+    static async getBySource(source) {
+        const { data, error } = await supabase.from('contacts')
+            .select('*')
+            .eq('source', source)
+            .order('last_message_at', { ascending: false });
+        if (error) throw error;
+        return data;
+    }
 }
 
 // ============================================================
@@ -233,53 +251,52 @@ class StatsModel {
     }
 
     static async getUnreadMessages() {
-        // Use RPC function for efficient SUM
-        const { data, error } = await supabase.rpc('get_total_unread_count');
+        // Simple and robust: Fetch unread_count column and sum in JS
+        // This avoids needing complex RPC functions that might be missing
+        const { data: contacts, error } = await supabase
+            .from('contacts')
+            .select('unread_count');
 
-        // If RPC fails (e.g. function not created yet), fallback to client-side sum
-        if (error) {
-            console.warn('RPC get_total_unread_count failed, falling back to client-side sum', error.message);
-            const { data: contacts, error: fetchError } = await supabase.from('contacts').select('unread_count');
-            if (fetchError) throw fetchError;
-            const total = contacts.reduce((sum, c) => sum + (c.unread_count || 0), 0);
-            return { count: total };
-        }
+        if (error) throw error;
 
-        return { count: data || 0 };
+        const total = contacts.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+        return { count: total };
     }
 
     static async getStatusBreakdown() {
-        const { data, error } = await supabase.rpc('get_status_breakdown');
+        // Fetch all statuses and aggregate in JS
+        // Much safer than relying on potentially missing RPC functions
+        const { data: contacts, error } = await supabase
+            .from('contacts')
+            .select('status');
 
-        if (error) {
-            console.warn('RPC get_status_breakdown failed, falling back to client-side aggregation', error.message);
-            const { data: contacts, error: fetchError } = await supabase.from('contacts').select('status');
-            if (fetchError) throw fetchError;
-            const counts = {};
-            contacts.forEach(row => {
-                counts[row.status] = (counts[row.status] || 0) + 1;
-            });
-            return Object.entries(counts).map(([status, count]) => ({ status, count }));
-        }
+        if (error) throw error;
 
-        return data; // already in format [{ status: '...', count: N }]
+        const counts = {};
+        contacts.forEach(row => {
+            const s = row.status || 'ongoing';
+            counts[s] = (counts[s] || 0) + 1;
+        });
+
+        // Convert to array format expected by controller
+        return Object.entries(counts).map(([status, count]) => ({ status, count }));
     }
 
     static async getTemperatureBreakdown() {
-        const { data, error } = await supabase.rpc('get_temperature_breakdown');
+        // Fetch all temperatures and aggregate in JS
+        const { data: contacts, error } = await supabase
+            .from('contacts')
+            .select('lead_temperature');
 
-        if (error) {
-            console.warn('RPC get_temperature_breakdown failed, falling back to client-side aggregation', error.message);
-            const { data: contacts, error: fetchError } = await supabase.from('contacts').select('lead_temperature');
-            if (fetchError) throw fetchError;
-            const counts = {};
-            contacts.forEach(row => {
-                counts[row.lead_temperature] = (counts[row.lead_temperature] || 0) + 1;
-            });
-            return Object.entries(counts).map(([lead_temperature, count]) => ({ lead_temperature, count }));
-        }
+        if (error) throw error;
 
-        return data;
+        const counts = {};
+        contacts.forEach(row => {
+            const t = row.lead_temperature || 'cold';
+            counts[t] = (counts[t] || 0) + 1;
+        });
+
+        return Object.entries(counts).map(([lead_temperature, count]) => ({ lead_temperature, count }));
     }
 }
 

@@ -9,6 +9,7 @@ export interface WhatsAppContact {
     status: 'ongoing' | 'converted' | 'rejected' | 'human_takeover' | 'follow_up';
     lead_temperature: 'hot' | 'warm' | 'cold';
     assigned_agent_id: string | null;
+    source: 'instagram' | 'meta_ads' | 'qr_code' | 'facebook' | 'whatsapp_link' | 'referral' | 'website' | 'other' | null;
 }
 
 export interface WhatsAppMessage {

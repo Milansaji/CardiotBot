@@ -315,6 +315,69 @@ class ContactController {
             res.status(500).json({ error: 'Failed to update contact name' });
         }
     }
+
+    /**
+     * PUT /api/contacts/:phoneNumber/source - Update contact source
+     */
+    static async updateSource(req, res) {
+        try {
+            const { phoneNumber } = req.params;
+            const { source } = req.body;
+
+            const validSources = ['instagram', 'meta_ads', 'qr_code', 'facebook', 'whatsapp_link', 'referral', 'website', 'other', null, ''];
+            if (source !== undefined && !validSources.includes(source)) {
+                return res.status(400).json({ error: 'Invalid source' });
+            }
+
+            await ContactModel.updateSource(source || null, phoneNumber);
+            res.json({ success: true, source: source || null });
+        } catch (error) {
+            console.error('Error updating source:', error);
+            res.status(500).json({ error: 'Failed to update source' });
+        }
+    }
+
+    /**
+     * GET /api/sources/breakdown - Get source breakdown counts
+     */
+    static async getSourceBreakdown(req, res) {
+        try {
+            const supabase = require('../config/supabase');
+            const { data: contacts, error } = await supabase
+                .from('contacts')
+                .select('source');
+            if (error) throw error;
+
+            const counts = {};
+            contacts.forEach(c => {
+                const s = c.source || 'unknown';
+                counts[s] = (counts[s] || 0) + 1;
+            });
+
+            const breakdown = Object.entries(counts)
+                .map(([source, count]) => ({ source, count }))
+                .sort((a, b) => b.count - a.count);
+
+            res.json(breakdown);
+        } catch (error) {
+            console.error('Error fetching source breakdown:', error);
+            res.status(500).json({ error: 'Failed to fetch source breakdown' });
+        }
+    }
+
+    /**
+     * GET /api/sources/:source/contacts - Get contacts by source
+     */
+    static async getContactsBySource(req, res) {
+        try {
+            const { source } = req.params;
+            const contacts = await ContactModel.getBySource(source === 'unknown' ? null : source);
+            res.json(contacts);
+        } catch (error) {
+            console.error('Error fetching contacts by source:', error);
+            res.status(500).json({ error: 'Failed to fetch contacts by source' });
+        }
+    }
 }
 
 module.exports = ContactController;

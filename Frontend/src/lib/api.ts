@@ -283,4 +283,21 @@ export const assignAgentToContact = async (phoneNumber: string, agentId: string 
     return response.data;
 };
 
+// ========== SOURCES ==========
+
+export const updateContactSource = async (phoneNumber: string, source: string | null): Promise<any> => {
+    const response = await api.put(`/api/contacts/${phoneNumber}/source`, { source });
+    return response.data;
+};
+
+export const getSourceBreakdown = async (): Promise<{ source: string; count: number }[]> => {
+    const response = await api.get('/api/sources/breakdown');
+    return response.data;
+};
+
+export const getContactsBySource = async (source: string): Promise<any[]> => {
+    const response = await api.get(`/api/sources/${source}/contacts`);
+    return response.data;
+};
+
 export default api;

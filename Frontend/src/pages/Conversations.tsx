@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Search,
   Phone,
@@ -95,6 +96,7 @@ const mapMessageToDashboard = (msg: WhatsAppMessage): DashboardMessage => {
 };
 
 const Conversations = () => {
+  const location = useLocation();
   const [selectedPhone, setSelectedPhone] = useState<string>("");
   const [message, setMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -116,7 +118,33 @@ const Conversations = () => {
   const assignAgentMutation = useMutation({
     mutationFn: ({ phoneNumber, agentId }: { phoneNumber: string; agentId: string | null }) =>
       api.assignAgentToContact(phoneNumber, agentId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contacts'] }),
+    onMutate: async ({ phoneNumber, agentId }) => {
+      // Cancel any in-flight refetches so they don't overwrite the optimistic update
+      await queryClient.cancelQueries({ queryKey: ['contacts'] });
+      const previousContacts = queryClient.getQueryData(['contacts']);
+      // Apply change to cache immediately so UI updates without waiting for the API call
+      queryClient.setQueryData(['contacts'], (old: any) =>
+        Array.isArray(old)
+          ? old.map((c: any) =>
+            c.phone_number === phoneNumber
+              ? { ...c, assigned_agent_id: agentId || null }
+              : c
+          )
+          : old
+      );
+      return { previousContacts };
+    },
+    onError: (err, _vars, context) => {
+      // Roll back optimistic update on error
+      console.error('❌ Agent assignment failed:', err);
+      if (context?.previousContacts) {
+        queryClient.setQueryData(['contacts'], context.previousContacts);
+      }
+    },
+    onSettled: () => {
+      // Always sync with DB after the mutation settles (success or error)
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    },
   });
 
   // Media & Keyboard State
@@ -279,8 +307,22 @@ const Conversations = () => {
   });
 
   // Effects
+
+  // Handle navigation from SegmentDetail - if router state has a phoneNumber, select it immediately
   useEffect(() => {
-    // Only auto-select first conversation on desktop
+    const state = location.state as { phoneNumber?: string } | null;
+    if (state?.phoneNumber) {
+      setSelectedPhone(state.phoneNumber);
+      // Clear the navigation state so that back-navigation doesn't re-trigger this
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
+
+  // Auto-select first conversation on desktop (only if nothing is already selected)
+  useEffect(() => {
+    const state = location.state as { phoneNumber?: string } | null;
+    // Skip auto-select if we navigated here with a specific phone
+    if (state?.phoneNumber) return;
     if (!selectedPhone && conversations.length > 0 && window.innerWidth >= 768) {
       setSelectedPhone(conversations[0].id);
     }
@@ -418,30 +460,20 @@ const Conversations = () => {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              {/* Agent Assignment - only shown for human_takeover */}
-              {selected.status === 'human_takeover' && (
-                <div className="flex items-center gap-1.5 mr-2">
-                  <UserCheck className="w-4 h-4 text-purple-500" />
-                  <select
-                    value={contacts.find((c: any) => c.phone_number === selectedPhone)?.assigned_agent_id || ''}
-                    onChange={(e) => assignAgentMutation.mutate({
-                      phoneNumber: selectedPhone,
-                      agentId: e.target.value || null
-                    })}
-                    className="text-xs border border-purple-200 rounded-md px-2 py-1 bg-purple-50 text-purple-700 outline-none focus:border-purple-400 cursor-pointer max-w-[130px]"
-                    title="Assign agent"
-                  >
-                    <option value="">Assign agent...</option>
-                    {agents.map((agent: any) => (
-                      <option key={agent.id} value={agent.id}>{agent.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-colors"><Search className="w-4 h-4" /></button>
-              <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-colors"><Phone className="w-4 h-4" /></button>
-              <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-colors"><MoreVertical className="w-4 h-4" /></button>
+            <div className="flex items-center gap-2">
+              {/* Show assigned agent badge in header */}
+              {(() => {
+                const assignedId = contacts.find((c: any) => c.phone_number === selectedPhone)?.assigned_agent_id;
+                const assignedAgent = agents.find((a: any) => a.id === assignedId);
+                return assignedAgent ? (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 border border-purple-200 rounded-full">
+                    <div className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center text-[10px] font-bold text-purple-700">
+                      {assignedAgent.name?.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-xs font-semibold text-purple-700">{assignedAgent.name}</span>
+                  </div>
+                ) : null;
+              })()}
             </div>
           </div>
 
@@ -632,6 +664,79 @@ const Conversations = () => {
           </div>
 
           <div className="p-5 space-y-6">
+            {/* Assigned Agent Section */}
+            <div>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">Assigned Agent</label>
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-2">
+                {(() => {
+                  const assignedId = contacts.find((c: any) => c.phone_number === selectedPhone)?.assigned_agent_id;
+                  const assignedAgent = agents.find((a: any) => a.id === assignedId);
+                  return assignedAgent ? (
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
+                        {assignedAgent.name?.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-xs font-semibold text-blue-700">{assignedAgent.name}</span>
+                      <span className="text-xs text-slate-400 ml-auto">assigned</span>
+                    </div>
+                  ) : null;
+                })()}
+                <select
+                  value={contacts.find((c: any) => c.phone_number === selectedPhone)?.assigned_agent_id || ''}
+                  onChange={(e) => {
+                    const newAgentId = e.target.value || null;
+                    assignAgentMutation.mutate({
+                      phoneNumber: selectedPhone,
+                      agentId: newAgentId
+                    });
+                  }}
+                  disabled={assignAgentMutation.isPending}
+                  className={`w-full bg-white border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium transition-opacity ${assignAgentMutation.isPending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  <option value="">No Agent Assigned</option>
+                  {agents.map((agent: any) => (
+                    <option key={agent.id} value={agent.id}>{agent.name}</option>
+                  ))}
+                </select>
+                {assignAgentMutation.isPending && (
+                  <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Assigning agent...
+                  </p>
+                )}
+                {assignAgentMutation.isError && (
+                  <p className="text-xs text-red-500 mt-1">Failed to assign agent. Please try again.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Source Section */}
+            <div>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">Lead Source</label>
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <select
+                  value={contacts.find((c: any) => c.phone_number === selectedPhone)?.source || ''}
+                  onChange={(e) => {
+                    const sourceVal = e.target.value || null;
+                    api.updateContactSource(selectedPhone, sourceVal).then(() => {
+                      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+                      queryClient.invalidateQueries({ queryKey: ['source-breakdown'] });
+                    });
+                  }}
+                  className="w-full bg-white border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium"
+                >
+                  <option value="">Unknown / Not Set</option>
+                  <option value="instagram">📸 Instagram</option>
+                  <option value="meta_ads">📊 Meta Ads</option>
+                  <option value="qr_code">🔲 QR Code</option>
+                  <option value="facebook">📘 Facebook</option>
+                  <option value="whatsapp_link">💬 WhatsApp Link</option>
+                  <option value="referral">🤝 Referral</option>
+                  <option value="website">🌐 Website</option>
+                  <option value="other">🏷️ Other</option>
+                </select>
+              </div>
+            </div>
+
             <div>
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">Deal Status</label>
               <div className="space-y-3">

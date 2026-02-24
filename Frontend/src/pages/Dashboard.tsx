@@ -1,9 +1,40 @@
 import { useDashboardStats } from "../hooks/useWhatsApp";
 import { TrendingUp, Users, MessageSquare, Mail, TrendingDown, Loader2 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { useQuery } from "@tanstack/react-query";
+import * as api from "../lib/api";
+
+const SOURCE_COLORS: Record<string, string> = {
+  instagram: "#e1306c",
+  meta_ads: "#1877f2",
+  qr_code: "#6366f1",
+  facebook: "#0866ff",
+  whatsapp_link: "#25d366",
+  referral: "#f59e0b",
+  website: "#06b6d4",
+  other: "#94a3b8",
+  unknown: "#cbd5e1",
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  instagram: "📸 Instagram",
+  meta_ads: "📊 Meta Ads",
+  qr_code: "🔲 QR Code",
+  facebook: "📘 Facebook",
+  whatsapp_link: "💬 WhatsApp Link",
+  referral: "🤝 Referral",
+  website: "🌐 Website",
+  other: "🏷️ Other",
+  unknown: "❓ Unknown",
+};
 
 const Dashboard = () => {
   const { data: stats, isLoading } = useDashboardStats();
+  const { data: sourceData = [] } = useQuery({
+    queryKey: ["source-breakdown"],
+    queryFn: api.getSourceBreakdown,
+    refetchInterval: 15000,
+  });
 
   if (isLoading) {
     return (
@@ -15,18 +46,30 @@ const Dashboard = () => {
 
   // Prepare data for Status pie chart
   const statusData = [
-    { name: "Ongoing", value: stats?.statusBreakdown.ongoing || 0, color: "#3b82f6" }, // Blue-500
-    { name: "Converted", value: stats?.statusBreakdown.converted || 0, color: "#22c55e" }, // Green-500
-    { name: "Rejected", value: stats?.statusBreakdown.rejected || 0, color: "#ef4444" }, // Red-500
-    { name: "Human Takeover", value: stats?.statusBreakdown.human_takeover || 0, color: "#a855f7" }, // Purple-500
+    { name: "Ongoing", value: stats?.statusBreakdown.ongoing || 0, color: "#3b82f6" },
+    { name: "Converted", value: stats?.statusBreakdown.converted || 0, color: "#22c55e" },
+    { name: "Rejected", value: stats?.statusBreakdown.rejected || 0, color: "#ef4444" },
+    { name: "Human Takeover", value: stats?.statusBreakdown.human_takeover || 0, color: "#a855f7" },
   ].filter(item => item.value > 0);
 
   // Prepare data for Temperature pie chart
   const temperatureData = [
-    { name: "Hot", value: stats?.temperatureBreakdown.hot || 0, color: "#f97316" }, // Orange-500
-    { name: "Warm", value: stats?.temperatureBreakdown.warm || 0, color: "#eab308" }, // Yellow-500
-    { name: "Cold", value: stats?.temperatureBreakdown.cold || 0, color: "#06b6d4" }, // Cyan-500
+    { name: "Hot 🔥", value: stats?.temperatureBreakdown.hot || 0, color: "#f97316" },
+    { name: "Warm 🌡️", value: stats?.temperatureBreakdown.warm || 0, color: "#eab308" },
+    { name: "Cold ❄️", value: stats?.temperatureBreakdown.cold || 0, color: "#06b6d4" },
   ].filter(item => item.value > 0);
+
+  // Prepare data for Source pie chart
+  const sourcePieData = sourceData
+    .filter((s: any) => s.count > 0)
+    .map((s: any) => ({
+      name: SOURCE_LABELS[s.source] || s.source,
+      key: s.source,
+      value: s.count,
+      color: SOURCE_COLORS[s.source] || "#94a3b8",
+    }));
+
+  const totalSourceContacts = sourcePieData.reduce((sum: number, s: any) => sum + s.value, 0);
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
@@ -76,17 +119,15 @@ const Dashboard = () => {
         />
       </div>
 
-      {/* Charts Row */}
+      {/* Charts Row 1: Status + Temperature */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Status Breakdown */}
         <div className="frappe-card">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-base font-semibold text-slate-800">Status Breakdown</h2>
-            <button className="text-xs text-slate-400 hover:text-slate-600">View Details</button>
           </div>
-
           <div className="flex flex-col sm:flex-row items-center justify-around gap-8">
-            <div className="relative w-48 h-48">
+            <div className="relative w-48 h-48 flex-shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -121,7 +162,6 @@ const Dashboard = () => {
                 <span className="text-xs text-slate-400 font-medium">Total</span>
               </div>
             </div>
-
             <div className="flex-1 w-full space-y-3">
               {statusData.map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between text-sm group cursor-pointer hover:bg-slate-50 p-2 rounded-md transition-colors">
@@ -145,11 +185,9 @@ const Dashboard = () => {
         <div className="frappe-card">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-base font-semibold text-slate-800">Lead Quality</h2>
-            <button className="text-xs text-slate-400 hover:text-slate-600">View Details</button>
           </div>
-
           <div className="flex flex-col sm:flex-row items-center justify-around gap-8">
-            <div className="relative w-48 h-48">
+            <div className="relative w-48 h-48 flex-shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -184,7 +222,6 @@ const Dashboard = () => {
                 <span className="text-xs text-slate-400 font-medium">Leads</span>
               </div>
             </div>
-
             <div className="flex-1 w-full space-y-3">
               {temperatureData.map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between text-sm group cursor-pointer hover:bg-slate-50 p-2 rounded-md transition-colors">
@@ -205,7 +242,93 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Quick Insights Row - Replaced with Frappe "Shortcuts" style */}
+      {/* Charts Row 2: Source Breakdown (full width) */}
+      <div className="frappe-card">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-base font-semibold text-slate-800">Lead Source Breakdown</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Where your contacts are coming from</p>
+          </div>
+          <span className="text-xs text-slate-400 bg-slate-50 border border-slate-100 px-3 py-1 rounded-full font-medium">
+            {totalSourceContacts} tracked contacts
+          </span>
+        </div>
+
+        {sourcePieData.length === 0 ? (
+          <div className="text-center py-10 text-slate-400">
+            <p className="text-sm">No source data yet. Assign sources to contacts in the Conversations panel.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col md:flex-row items-center gap-8">
+            {/* Donut Chart */}
+            <div className="relative w-56 h-56 flex-shrink-0 mx-auto md:mx-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={sourcePieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={68}
+                    outerRadius={90}
+                    paddingAngle={3}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {sourcePieData.map((entry: any, index: number) => (
+                      <Cell key={`src-cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: any, name: any) => [value, name]}
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      color: '#0f172a',
+                      fontSize: '12px',
+                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                    }}
+                    itemStyle={{ color: '#0f172a' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
+                <span className="text-2xl font-bold text-slate-800">{totalSourceContacts}</span>
+                <span className="text-xs text-slate-400 font-medium">Sources</span>
+              </div>
+            </div>
+
+            {/* Legend Grid */}
+            <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {sourcePieData.map((item: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between text-sm hover:bg-slate-50 p-2.5 rounded-lg transition-colors cursor-default"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-3 h-3 rounded-full flex-shrink-0 ring-2 ring-white shadow-sm"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="text-slate-600 font-medium truncate">{item.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <span className="font-bold text-slate-800">{item.value}</span>
+                    <span
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white min-w-[36px] text-center"
+                      style={{ backgroundColor: item.color }}
+                    >
+                      {Math.round((item.value / totalSourceContacts) * 100)}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Quick Insights Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <InsightCard
           label="Conversion Rate"

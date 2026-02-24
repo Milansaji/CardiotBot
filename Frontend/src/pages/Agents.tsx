@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
     UserCheck,
     Loader2,
     Mail,
     MessageSquare,
     Phone,
-    ExternalLink,
     ChevronRight,
     X,
+    ExternalLink,
 } from 'lucide-react';
 import * as api from '../lib/api';
 import { formatDistanceToNow } from 'date-fns';
@@ -32,6 +33,7 @@ const statusColors: Record<string, string> = {
 
 const Agents: React.FC = () => {
     const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+    const navigate = useNavigate();
 
     const { data: agents = [], isLoading } = useQuery({
         queryKey: ['agents'],
@@ -44,6 +46,10 @@ const Agents: React.FC = () => {
         enabled: !!selectedAgent,
     });
 
+    const handleOpenChat = (phoneNumber: string) => {
+        navigate('/conversations', { state: { phoneNumber } });
+    };
+
     return (
         <div className="space-y-6 animate-fade-in pb-12">
             {/* Header */}
@@ -52,14 +58,6 @@ const Agents: React.FC = () => {
                     <h1 className="text-xl font-semibold text-slate-900">Agents</h1>
                     <p className="text-sm text-slate-500 mt-1">Directory of authenticated users who can handle chats</p>
                 </div>
-                <a
-                    href="https://supabase.com/dashboard/project/_/auth/users"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 rounded-md bg-white border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
-                >
-                    <ExternalLink className="w-4 h-4" /> Manage Users in Supabase
-                </a>
             </div>
 
             <div className="flex gap-6 flex-col lg:flex-row">
@@ -73,7 +71,7 @@ const Agents: React.FC = () => {
                         <div className="bg-white border border-slate-200 rounded-lg p-12 text-center shadow-sm">
                             <UserCheck className="w-16 h-16 text-slate-300 mx-auto mb-4" />
                             <h3 className="text-lg font-medium text-slate-700 mb-2">No agents found</h3>
-                            <p className="text-slate-500 mb-4">Invite users via Supabase Auth to see them here.</p>
+                            <p className="text-slate-500 mb-4">New users can join by signing up on the login page.</p>
                         </div>
                     ) : (
                         agents.map((agent: Agent) => (
@@ -127,7 +125,7 @@ const Agents: React.FC = () => {
                                 </div>
                                 <div>
                                     <h2 className="font-semibold text-slate-800">{selectedAgent.name || 'Agent'}'s Active Chats</h2>
-                                    <p className="text-xs text-slate-500">{agentContacts.length} assigned contacts</p>
+                                    <p className="text-xs text-slate-500">{agentContacts.length} assigned contacts · click any to open chat</p>
                                 </div>
                             </div>
                             <button onClick={() => setSelectedAgent(null)} className="p-1.5 hover:bg-slate-200 rounded-md transition-colors">
@@ -148,13 +146,18 @@ const Agents: React.FC = () => {
                         ) : (
                             <div className="divide-y divide-slate-100 overflow-y-auto max-h-[600px]">
                                 {agentContacts.map((contact: any) => (
-                                    <div key={contact.id} className="flex items-center gap-3 p-4 hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => window.location.href = `/conversations?phone=${contact.phone_number}`}>
-                                        <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-sm border border-slate-200">
+                                    <div
+                                        key={contact.id}
+                                        className="flex items-center gap-3 p-4 hover:bg-blue-50 transition-colors group cursor-pointer"
+                                        onClick={() => handleOpenChat(contact.phone_number)}
+                                        title={`Open chat with ${contact.profile_name}`}
+                                    >
+                                        <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-sm border border-slate-200 group-hover:bg-blue-100 group-hover:border-blue-200 group-hover:text-blue-700 transition-colors">
                                             {contact.profile_name?.slice(0, 2).toUpperCase() || '?'}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
-                                                <h4 className="font-medium text-slate-800 text-sm truncate">{contact.profile_name}</h4>
+                                                <h4 className="font-medium text-slate-800 text-sm truncate group-hover:text-blue-700 transition-colors">{contact.profile_name}</h4>
                                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${statusColors[contact.status] || 'bg-slate-100 text-slate-600'}`}>
                                                     {contact.status?.replace('_', ' ')}
                                                 </span>
@@ -164,11 +167,14 @@ const Agents: React.FC = () => {
                                                 {contact.phone_number}
                                             </div>
                                         </div>
-                                        <span className="text-xs text-slate-400 whitespace-nowrap group-hover:text-blue-500 transition-colors">
-                                            {contact.last_message_at
-                                                ? formatDistanceToNow(new Date(contact.last_message_at * 1000), { addSuffix: true })
-                                                : ''}
-                                        </span>
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                            <span className="text-xs text-slate-400 whitespace-nowrap group-hover:text-blue-500 transition-colors">
+                                                {contact.last_message_at
+                                                    ? formatDistanceToNow(new Date(contact.last_message_at * 1000), { addSuffix: true })
+                                                    : ''}
+                                            </span>
+                                            <ExternalLink className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100" />
+                                        </div>
                                     </div>
                                 ))}
                             </div>

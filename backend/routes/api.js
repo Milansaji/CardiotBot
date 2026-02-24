@@ -25,8 +25,13 @@ router.put('/contacts/:phoneNumber/read', ContactController.resetUnreadCount);
 router.put('/contacts/:phoneNumber/status', ContactController.updateStatus);
 router.put('/contacts/:phoneNumber/temperature', ContactController.updateTemperature);
 router.put('/contacts/:phoneNumber/name', ContactController.updateName);
+router.put('/contacts/:phoneNumber/source', ContactController.updateSource);
 router.delete('/contacts/:phoneNumber', ContactController.deleteContact);
 router.get('/contacts/:phoneNumber/segments', SegmentController.getContactSegments);
+
+// Source tracking routes
+router.get('/sources/breakdown', ContactController.getSourceBreakdown);
+router.get('/sources/:source/contacts', ContactController.getContactsBySource);
 
 // Segment routes
 router.get('/segments', SegmentController.getAllSegments);

@@ -1,38 +1,89 @@
-# Ignore dependencies
-node_modules/
-
-# Ignore database
-database/
-*.db
-*.sqlite
-*.sqlite3
-
-# Ignore environment variables
+# ====================
+# Environment Variables
+# ====================
 .env
 .env.local
+.env.development
 .env.production
+.env.test
+*.env
 
-# Ignore media files
-public/media/
-
-# Ignore logs
-*.log
+# ====================
+# Node / npm
+# ====================
+node_modules/
 npm-debug.log*
-logs/
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+package-lock.json
+yarn.lock
 
-# Ignore OS files
+# ====================
+# Build Outputs
+# ====================
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.cache/
+.turbo/
+
+# ====================
+# Vite / Frontend
+# ====================
+Frontend/node_modules/
+Frontend/dist/
+Frontend/.env
+Frontend/.env.local
+Frontend/.env.production
+
+# ====================
+# Uploaded Media Files
+# ====================
+backend/uploads/
+media/
+*.mp4
+*.mp3
+*.ogg
+*.wav
+*.webm
+*.pdf
+*.docx
+*.xlsx
+
+# ====================
+# Logs
+# ====================
+logs/
+*.log
+*.log.*
+
+# ====================
+# OS & Editor
+# ====================
 .DS_Store
 Thumbs.db
-desktop.ini
-
-# Ignore IDE files
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
 
-# Ignore temporary files
-tmp/
-temp/
-*.tmp
+# ====================
+# Supabase / Database
+# ====================
+.supabase/
+supabase/.temp/
+
+# ====================
+# Misc
+# ====================
+*.pem
+*.key
+*.cert
+.vercel
+.netlify

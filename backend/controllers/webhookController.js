@@ -163,8 +163,68 @@ class WebhookController {
             await ContactModel.upsert(fromNumber, profileName, timestamp);
             console.log('✅ Contact updated');
 
-            // Exit workflow if contact replies
+            // ── AUTO SOURCE DETECTION ──────────────────────────────────────
+            // Only set source if this contact doesn't already have one
             const contactData = await ContactModel.getByPhone(fromNumber);
+
+            if (contactData && !contactData.source) {
+                let detectedSource = null;
+
+                // 1. Check WhatsApp Referral object (most reliable)
+                // Meta sends this for Click-to-WhatsApp ads and QR codes
+                const referral = message.referral;
+                if (referral) {
+                    const sourceUrl = referral.source_url || '';
+                    const sourceType = referral.source_type || '';
+                    if (sourceType === 'ad' || sourceUrl.includes('facebook.com') || sourceUrl.includes('fb.com')) {
+                        detectedSource = 'meta_ads';
+                    } else if (sourceType === 'qr_code' || referral.source_id) {
+                        detectedSource = 'qr_code';
+                    } else if (sourceUrl.includes('instagram.com')) {
+                        detectedSource = 'instagram';
+                    }
+                    console.log(`🔍 Referral detected: type=${sourceType} url=${sourceUrl} → ${detectedSource}`);
+                }
+
+                // 2. Check message text for ?source= or ?ref= parameter
+                if (!detectedSource && messageText) {
+                    const sourceParamMatch = messageText.match(/[?&]source=([a-z_]+)/i);
+                    const refParamMatch = messageText.match(/[?&]ref=([a-z_]+)/i);
+                    const param = (sourceParamMatch?.[1] || refParamMatch?.[1] || '').toLowerCase();
+                    const validSources = ['instagram', 'meta_ads', 'qr_code', 'facebook', 'whatsapp_link', 'referral', 'website', 'other'];
+                    if (validSources.includes(param)) {
+                        detectedSource = param;
+                        console.log(`🔗 Source from message param: ${detectedSource}`);
+                    }
+                }
+
+                // 3. Check message text for keyword hints (fallback)
+                if (!detectedSource && messageText) {
+                    const lower = messageText.toLowerCase();
+                    if (lower.includes('instagram') || lower.includes('insta')) {
+                        detectedSource = 'instagram';
+                    } else if (lower.includes('facebook') || lower.includes(' fb ')) {
+                        detectedSource = 'facebook';
+                    } else if (lower.includes('qr') || lower.includes('qr code') || lower.includes('scan')) {
+                        detectedSource = 'qr_code';
+                    } else if (lower.includes('ads') || lower.includes('advertisement') || lower.includes('ad ')) {
+                        detectedSource = 'meta_ads';
+                    } else if (lower.includes('referred') || lower.includes('friend told') || lower.includes('recommended')) {
+                        detectedSource = 'referral';
+                    }
+                    if (detectedSource) {
+                        console.log(`💡 Source from keyword: ${detectedSource}`);
+                    }
+                }
+
+                if (detectedSource) {
+                    await ContactModel.updateSource(detectedSource, fromNumber);
+                    console.log(`✅ Auto-set source for ${fromNumber}: ${detectedSource}`);
+                }
+            }
+            // ─────────────────────────────────────────────────────────────
+
+            // Exit workflow if contact replies
             if (contactData && contactData.workflow_id) {
                 await ContactModel.clearWorkflow(contactData.id);
                 console.log(`🔄 Contact ${fromNumber} removed from workflow (replied)`);
@@ -196,26 +256,15 @@ class WebhookController {
             const existingMessage = await MessageModel.getById(messageId);
 
             if (!existingMessage && (statusValue === 'sent' || statusValue === 'delivered')) {
-                console.log(`💾 Storing bot's outgoing message to ${recipientId}`);
+                // Don't create "[Bot Message]" placeholder stubs here.
+                // The Python bot should POST to /api/bot-message with the actual text.
+                // We just update the contact's last_message_at so the conversation appears.
                 const timestamp = Math.floor(Date.now() / 1000);
-
                 try {
-                    await MessageModel.insert({
-                        whatsapp_message_id: messageId,
-                        from_number: recipientId,
-                        profile_name: 'Bot',
-                        message_type: 'text',
-                        message_text: '[Bot Message]',
-                        media_id: null,
-                        media_url: null,
-                        media_mime_type: null,
-                        timestamp,
-                        direction: 'outgoing'
-                    });
                     await ContactModel.upsert(recipientId, recipientId, timestamp);
-                    console.log('✅ Bot message stored');
+                    console.log(`✅ Contact updated for bot message to ${recipientId}`);
                 } catch (error) {
-                    console.error('⚠️  Error storing bot message:', error.message);
+                    console.error('⚠️  Error updating contact for bot message:', error.message);
                 }
             }
 
